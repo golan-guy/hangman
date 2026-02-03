@@ -106,7 +106,7 @@ export function addPlayer(state: GameState, playerId: number, playerName: string
     playerOrder: [...state.playerOrder, playerId],
     playersData: {
       ...state.playersData,
-      [playerId]: { name: playerName, score: 0 },
+      [playerId]: { name: playerName, score: 0, timeouts: 0 },
     },
   };
 }
@@ -215,5 +215,62 @@ export function newRound(state: GameState, word: string, category: string): Game
     awaitingSolution: false,
     solvingPlayerId: undefined,
     solutionMessageId: undefined,
+  };
+}
+
+/**
+ * Increment timeout count for a player
+ * @param state - Current game state
+ * @param playerId - Player ID
+ * @returns Updated game state
+ */
+export function incrementTimeout(state: GameState, playerId: number): GameState {
+  const playerData = state.playersData[playerId];
+  if (!playerData) {
+    return state;
+  }
+
+  return {
+    ...state,
+    playersData: {
+      ...state.playersData,
+      [playerId]: {
+        ...playerData,
+        timeouts: (playerData.timeouts || 0) + 1,
+      },
+    },
+  };
+}
+
+/**
+ * Remove a player from the game
+ * @param state - Current game state
+ * @param playerId - Player ID to remove
+ * @returns Updated game state
+ */
+export function removePlayer(state: GameState, playerId: number): GameState {
+  const playerIndex = state.playerOrder.indexOf(playerId);
+  if (playerIndex === -1) {
+    return state;
+  }
+
+  const newPlayerOrder = state.playerOrder.filter((id) => id !== playerId);
+  const { [playerId]: _, ...remainingPlayers } = state.playersData;
+
+  // Adjust turn index if needed
+  let newTurnIndex = state.turnIndex;
+  if (playerIndex < state.turnIndex) {
+    // Removed player was before current turn, shift back
+    newTurnIndex = Math.max(0, state.turnIndex - 1);
+  } else if (playerIndex === state.turnIndex) {
+    // Removed player was current turn, keep same index but wrap if needed
+    newTurnIndex = newPlayerOrder.length > 0 ? state.turnIndex % newPlayerOrder.length : 0;
+  }
+
+  return {
+    ...state,
+    playerOrder: newPlayerOrder,
+    playersData: remainingPlayers,
+    turnIndex: newTurnIndex,
   };
 }

@@ -9,7 +9,11 @@ export type GameStatus = 'joining' | 'playing';
 export interface PlayerData {
   name: string;
   score: number;
+  timeouts: number;
 }
+
+/** Max timeouts before player is kicked */
+export const MAX_TIMEOUTS = 3;
 
 /** Complete game state stored in Redis */
 export interface GameState {

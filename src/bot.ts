@@ -4,7 +4,7 @@
 
 import { Bot, type Context } from 'grammy';
 import { getRandomWord } from './data/words';
-import { type GameState, SOLUTION_TIMEOUT_MS, TURN_TIMEOUT_MS } from './types';
+import { type GameState, MAX_TIMEOUTS, SOLUTION_TIMEOUT_MS, TURN_TIMEOUT_MS } from './types';
 import { createJoinKeyboard, createLetterKeyboard, parseCallbackData } from './utils/keyboard';
 import { compareHebrewStrings, getBothForms, isHebrewLetter, normalize } from './utils/normalize';
 import {
@@ -17,8 +17,10 @@ import {
   getCurrentPlayer,
   getCurrentPlayerId,
   getGameState,
+  incrementTimeout,
   newRound,
   nextTurn,
+  removePlayer,
   saveGameState,
 } from './utils/redis';
 
@@ -282,18 +284,47 @@ async function checkAndHandleTurnTimeout(ctx: Context, state: GameState, chatId:
 
   // Check if turn timer exists and has expired
   if (state.turnStartTime && Date.now() - state.turnStartTime > TURN_TIMEOUT_MS) {
+    const timedOutPlayerId = getCurrentPlayerId(state);
     const timedOutPlayer = getCurrentPlayer(state);
     const timedOutPlayerName = timedOutPlayer?.name || 'השחקן';
 
-    // Move to next player with fresh timer
-    const newState = nextTurn(state);
+    if (!timedOutPlayerId) {
+      return false;
+    }
+
+    // Increment timeout count
+    let newState = incrementTimeout(state, timedOutPlayerId);
+    const timeoutCount = newState.playersData[timedOutPlayerId]?.timeouts || 0;
+
+    // Check if player should be kicked
+    if (timeoutCount >= MAX_TIMEOUTS) {
+      newState = removePlayer(newState, timedOutPlayerId);
+
+      await ctx.answerCallbackQuery({ text: `🚫 ${timedOutPlayerName} הוסר/ה מהמשחק!` });
+      await ctx.api.sendMessage(chatId, `🚫 <b>${timedOutPlayerName}</b> הוסר/ה מהמשחק לאחר ${MAX_TIMEOUTS} פסילות!`, {
+        parse_mode: 'HTML',
+      });
+
+      // Check if game should end
+      if (newState.playerOrder.length < 1) {
+        await ctx.api.sendMessage(chatId, '🛑 המשחק הסתיים - אין מספיק שחקנים.');
+        await deleteGameState(chatId);
+        return true;
+      }
+    } else {
+      // Just move to next player
+      newState = nextTurn(newState);
+
+      await ctx.answerCallbackQuery({ text: `⏰ נגמר הזמן! (${timeoutCount}/${MAX_TIMEOUTS})` });
+      await ctx.api.sendMessage(
+        chatId,
+        `⏰ נגמר הזמן ל-<b>${timedOutPlayerName}</b>! (${timeoutCount}/${MAX_TIMEOUTS}) התור עובר.`,
+        { parse_mode: 'HTML' },
+      );
+    }
+
     newState.turnStartTime = Date.now();
     await saveGameState(chatId, newState);
-
-    await ctx.answerCallbackQuery({ text: `⏰ נגמר הזמן! התור עבר.` });
-    await ctx.api.sendMessage(chatId, `⏰ נגמר הזמן ל-<b>${timedOutPlayerName}</b>! התור עובר.`, {
-      parse_mode: 'HTML',
-    });
     await updateGameBoard(ctx, newState, chatId, true);
     return true;
   }

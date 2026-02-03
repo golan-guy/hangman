@@ -3,9 +3,18 @@
  */
 
 import { Bot } from 'grammy';
-import { type GameState, REDIS_PREFIX, SOLUTION_TIMEOUT_MS, TURN_TIMEOUT_MS } from './types';
+import { type GameState, MAX_TIMEOUTS, REDIS_PREFIX, SOLUTION_TIMEOUT_MS, TURN_TIMEOUT_MS } from './types';
 import { createLetterKeyboard } from './utils/keyboard';
-import { getCurrentPlayer, getCurrentPlayerId, getRedisClient, nextTurn, saveGameState } from './utils/redis';
+import {
+  deleteGameState,
+  getCurrentPlayer,
+  getCurrentPlayerId,
+  getRedisClient,
+  incrementTimeout,
+  nextTurn,
+  removePlayer,
+  saveGameState,
+} from './utils/redis';
 
 const token = process.env.BOT_TOKEN;
 if (!token) {
@@ -65,18 +74,45 @@ export async function checkAllGameTimeouts(): Promise<{ checked: number; timedOu
  * Handle turn timeout via cron
  */
 async function handleTurnTimeout(chatId: number, state: GameState): Promise<void> {
+  const timedOutPlayerId = getCurrentPlayerId(state);
   const timedOutPlayer = getCurrentPlayer(state);
   const timedOutPlayerName = timedOutPlayer?.name || 'השחקן';
 
-  // Move to next player with fresh timer
-  const newState = nextTurn(state);
+  if (!timedOutPlayerId) {
+    return;
+  }
+
+  // Increment timeout count
+  let newState = incrementTimeout(state, timedOutPlayerId);
+  const timeoutCount = newState.playersData[timedOutPlayerId]?.timeouts || 0;
+
+  // Check if player should be kicked
+  if (timeoutCount >= MAX_TIMEOUTS) {
+    newState = removePlayer(newState, timedOutPlayerId);
+
+    await bot.api.sendMessage(chatId, `🚫 <b>${timedOutPlayerName}</b> הוסר/ה מהמשחק לאחר ${MAX_TIMEOUTS} פסילות!`, {
+      parse_mode: 'HTML',
+    });
+
+    // Check if game should end (no players left or only 1)
+    if (newState.playerOrder.length < 1) {
+      await bot.api.sendMessage(chatId, '🛑 המשחק הסתיים - אין מספיק שחקנים.');
+      await deleteGameState(chatId);
+      return;
+    }
+  } else {
+    // Just move to next player
+    newState = nextTurn(newState);
+
+    await bot.api.sendMessage(
+      chatId,
+      `⏰ נגמר הזמן ל-<b>${timedOutPlayerName}</b>! (${timeoutCount}/${MAX_TIMEOUTS}) התור עובר.`,
+      { parse_mode: 'HTML' },
+    );
+  }
+
   newState.turnStartTime = Date.now();
   await saveGameState(chatId, newState);
-
-  // Send timeout message
-  await bot.api.sendMessage(chatId, `⏰ נגמר הזמן ל-<b>${timedOutPlayerName}</b>! התור עובר.`, {
-    parse_mode: 'HTML',
-  });
 
   // Send updated game board
   await sendGameBoard(chatId, newState);
@@ -86,23 +122,51 @@ async function handleTurnTimeout(chatId: number, state: GameState): Promise<void
  * Handle solution timeout via cron
  */
 async function handleSolutionTimeout(chatId: number, state: GameState): Promise<void> {
-  const timedOutPlayer = state.solvingPlayerId ? state.playersData[state.solvingPlayerId] : undefined;
+  const timedOutPlayerId = state.solvingPlayerId;
+  const timedOutPlayer = timedOutPlayerId ? state.playersData[timedOutPlayerId] : undefined;
   const timedOutPlayerName = timedOutPlayer?.name || 'השחקן';
 
-  // Clear solution flags and move to next player
+  // Clear solution flags
   state.awaitingSolution = false;
   state.solvingPlayerId = undefined;
   state.solutionMessageId = undefined;
   state.solutionStartTime = undefined;
 
-  const newState = nextTurn(state);
+  if (!timedOutPlayerId) {
+    return;
+  }
+
+  // Increment timeout count
+  let newState = incrementTimeout(state, timedOutPlayerId);
+  const timeoutCount = newState.playersData[timedOutPlayerId]?.timeouts || 0;
+
+  // Check if player should be kicked
+  if (timeoutCount >= MAX_TIMEOUTS) {
+    newState = removePlayer(newState, timedOutPlayerId);
+
+    await bot.api.sendMessage(chatId, `🚫 <b>${timedOutPlayerName}</b> הוסר/ה מהמשחק לאחר ${MAX_TIMEOUTS} פסילות!`, {
+      parse_mode: 'HTML',
+    });
+
+    // Check if game should end
+    if (newState.playerOrder.length < 1) {
+      await bot.api.sendMessage(chatId, '🛑 המשחק הסתיים - אין מספיק שחקנים.');
+      await deleteGameState(chatId);
+      return;
+    }
+  } else {
+    // Just move to next player
+    newState = nextTurn(newState);
+
+    await bot.api.sendMessage(
+      chatId,
+      `⏰ נגמר הזמן לפתרון ל-<b>${timedOutPlayerName}</b>! (${timeoutCount}/${MAX_TIMEOUTS}) התור עובר.`,
+      { parse_mode: 'HTML' },
+    );
+  }
+
   newState.turnStartTime = Date.now();
   await saveGameState(chatId, newState);
-
-  // Send timeout message
-  await bot.api.sendMessage(chatId, `⏰ נגמר הזמן לפתרון ל-<b>${timedOutPlayerName}</b>! התור עובר.`, {
-    parse_mode: 'HTML',
-  });
 
   // Send updated game board
   await sendGameBoard(chatId, newState);
