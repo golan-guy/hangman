@@ -37,6 +37,8 @@ export interface GameState {
   awaitingSolution?: boolean;
   /** Player ID who is attempting to solve */
   solvingPlayerId?: number;
+  /** Message ID of the solution prompt (to verify reply) */
+  solutionMessageId?: number;
 }
 
 /** Word entry in the word bank */

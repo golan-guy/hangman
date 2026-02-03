@@ -214,5 +214,6 @@ export function newRound(state: GameState, word: string, category: string): Game
     revealedLetters: [],
     awaitingSolution: false,
     solvingPlayerId: undefined,
+    solutionMessageId: undefined,
   };
 }

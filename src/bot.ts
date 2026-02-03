@@ -194,7 +194,7 @@ export function createBot(token: string): Bot {
     }
   });
 
-  // Handle text messages (for solution attempts via force_reply)
+  // Handle text messages (for solution attempts via reply)
   bot.on('message:text', async (ctx) => {
     const chatId = ctx.chat?.id;
     const userId = ctx.from?.id;
@@ -203,7 +203,7 @@ export function createBot(token: string): Bot {
       return;
     }
 
-    // Check if this is a reply to our force_reply
+    // Check if this is a reply
     const replyTo = ctx.message?.reply_to_message;
     if (!replyTo) {
       return;
@@ -211,6 +211,11 @@ export function createBot(token: string): Bot {
 
     const state = await getGameState(chatId);
     if (!state || !state.awaitingSolution || state.solvingPlayerId !== userId) {
+      return;
+    }
+
+    // Verify reply is to our solution prompt message
+    if (state.solutionMessageId && replyTo.message_id !== state.solutionMessageId) {
       return;
     }
 
@@ -413,20 +418,25 @@ async function handleSolveRequest(ctx: Context, state: GameState, chatId: number
     return;
   }
 
-  // Set awaiting solution flag
+  const playerName = state.playersData[userId]?.name || 'שחקן';
+
+  await ctx.answerCallbackQuery({ text: 'השב להודעה עם הפתרון!' });
+
+  // Send message that user needs to reply to
+  const promptMessage = await ctx.api.sendMessage(
+    chatId,
+    `🤔 <b>${playerName}</b>, מה הפתרון שלך?\n\n<i>↩️ השב להודעה זו עם התשובה</i>`,
+    {
+      parse_mode: 'HTML',
+      reply_markup: { force_reply: true, selective: true },
+    },
+  );
+
+  // Set awaiting solution flag with message ID
   state.awaitingSolution = true;
   state.solvingPlayerId = userId;
+  state.solutionMessageId = promptMessage.message_id;
   await saveGameState(chatId, state);
-
-  await ctx.answerCallbackQuery({ text: 'רשום את הפתרון שלך!' });
-
-  // Send force_reply message
-  await ctx.api.sendMessage(chatId, '🤔 מה הפתרון שלך?', {
-    reply_markup: { force_reply: true, selective: true },
-    reply_parameters: {
-      message_id: ctx.callbackQuery?.message?.message_id || 0,
-    },
-  });
 }
 
 /**
@@ -439,9 +449,10 @@ async function handleSolutionAttempt(
   userId: number,
   answer: string,
 ): Promise<void> {
-  // Clear awaiting flag
+  // Clear awaiting flags
   state.awaitingSolution = false;
   state.solvingPlayerId = undefined;
+  state.solutionMessageId = undefined;
 
   // Compare answer with word (ignore spaces and final letters)
   const isCorrect = compareHebrewStrings(answer, state.word);
