@@ -622,4 +622,37 @@ function isWordComplete(state: GameState): boolean {
   return true;
 }
 
+/**
+ * Register bot commands with Telegram
+ */
+export async function registerCommands(bot: Bot): Promise<void> {
+  try {
+    // Commands for private chats
+    await bot.api.setMyCommands(
+      [
+        { command: 'start', description: '🎡 התחל שיחה עם הבוט' },
+        { command: 'help', description: '❓ עזרה וחוקי המשחק' },
+      ],
+      { scope: { type: 'all_private_chats' } },
+    );
+
+    // Commands for all users in groups
+    await bot.api.setMyCommands([{ command: 'help', description: '❓ עזרה וחוקי המשחק' }], {
+      scope: { type: 'all_group_chats' },
+    });
+
+    // Admin commands in groups
+    await bot.api.setMyCommands(
+      [
+        { command: 'start_game', description: '🎮 התחל משחק חדש' },
+        { command: 'end_game', description: '🛑 סיים משחק' },
+        { command: 'help', description: '❓ עזרה וחוקי המשחק' },
+      ],
+      { scope: { type: 'all_chat_administrators' } },
+    );
+  } catch (error) {
+    console.error('Failed to register commands:', error);
+  }
+}
+
 export { DEFAULT_WIN_LIMIT };
