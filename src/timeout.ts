@@ -170,14 +170,19 @@ function buildWordDisplay(state: GameState): string {
 
 /**
  * Build scoreboard text
+ * Uses RLM (Right-to-Left Mark) to force consistent RTL alignment
  */
 function buildScoreboard(state: GameState): string {
+  const RLM = '\u200F'; // Right-to-Left Mark
   return state.playerOrder
     .map((id, index) => {
       const player = state.playersData[id];
       const isCurrentTurn = index === state.turnIndex;
-      const marker = isCurrentTurn ? '➡️ ' : '   ';
-      return `${marker}${player?.name || 'שחקן'}: ${player?.score || 0} נק'`;
+      const marker = isCurrentTurn ? '➡️' : '⬜';
+      const score = player?.score || 0;
+      const name = player?.name || 'שחקן';
+      // Format: marker | score | name (RTL aligned)
+      return `${RLM}${marker} ${score} נק' • ${name}`;
     })
     .join('\n');
 }
