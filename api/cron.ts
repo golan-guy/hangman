@@ -5,7 +5,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { checkAllGameTimeouts } from '../src/timeout';
 
-const CRON_SECRET = process.env.CRON_SECRET || 'hangman-cron-2024';
+const CRON_SECRET = process.env.CRON_SECRET || '';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Verify cron secret via query parameter
