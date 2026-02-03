@@ -129,7 +129,8 @@ async function sendGameBoard(chatId: number, state: GameState): Promise<void> {
     `📂 קטגוריה: <b>${state.category}</b>\n\n` +
     `<code>${wordDisplay}</code>\n\n` +
     `📊 <b>ניקוד:</b>\n${scoreboard}\n\n` +
-    `🎮 <b>תור:</b> ${playerMention}`;
+    `🎮 <b>תור:</b> ${playerMention}\n` +
+    `⏱ <i>דקה לבחירה</i>`;
 
   const message = await bot.api.sendMessage(chatId, text, {
     parse_mode: 'HTML',

@@ -623,7 +623,8 @@ async function updateGameBoard(ctx: Context, state: GameState, chatId: number, n
     `📂 קטגוריה: <b>${state.category}</b>\n\n` +
     `<code>${wordDisplay}</code>\n\n` +
     `📊 <b>ניקוד:</b>\n${scoreboard}\n\n` +
-    `🎮 <b>תור:</b> ${playerMention}`;
+    `🎮 <b>תור:</b> ${playerMention}\n` +
+    `⏱ <i>דקה לבחירה</i>`;
 
   if (newMessage) {
     const message = await ctx.api.sendMessage(chatId, text, {
