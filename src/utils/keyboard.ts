@@ -24,16 +24,16 @@ export function createJoinKeyboard(): InlineKeyboard {
 export function createLetterKeyboard(revealedLetters: Set<string>): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
-  // Filter out already guessed letters
-  const availableLetters = HEBREW_LETTERS.filter((letter) => !revealedLetters.has(normalize(letter)));
+  // Filter out already guessed letters and reverse for RTL display
+  const availableLetters = HEBREW_LETTERS.filter((letter) => !revealedLetters.has(normalize(letter))).reverse();
 
-  // Add letters in rows (RTL friendly layout)
-  for (let i = 0; i < availableLetters.length; i++) {
-    const letter = availableLetters[i];
-    keyboard.text(letter, `letter:${letter}`);
-
-    // Add row break after every LETTERS_PER_ROW letters
-    if ((i + 1) % LETTERS_PER_ROW === 0 && i < availableLetters.length - 1) {
+  // Split into rows and reverse each row for RTL
+  for (let i = 0; i < availableLetters.length; i += LETTERS_PER_ROW) {
+    const row = availableLetters.slice(i, i + LETTERS_PER_ROW).reverse();
+    for (const letter of row) {
+      keyboard.text(letter, `letter:${letter}`);
+    }
+    if (i + LETTERS_PER_ROW < availableLetters.length) {
       keyboard.row();
     }
   }
