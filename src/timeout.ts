@@ -174,6 +174,7 @@ async function handleSolutionTimeout(chatId: number, state: GameState): Promise<
 
 /**
  * Send game board message
+ * Always sends new message to trigger notification for mentioned player
  */
 async function sendGameBoard(chatId: number, state: GameState): Promise<void> {
   const wordDisplay = buildWordDisplay(state);
@@ -196,6 +197,16 @@ async function sendGameBoard(chatId: number, state: GameState): Promise<void> {
     `🎮 <b>תור:</b> ${playerMention}\n` +
     `⏱ <i>דקה לבחירה</i>`;
 
+  // Try to delete old message to reduce clutter
+  if (state.gameBoardMessageId) {
+    try {
+      await bot.api.deleteMessage(chatId, state.gameBoardMessageId);
+    } catch {
+      // Ignore if message can't be deleted
+    }
+  }
+
+  // Send new message to trigger notification
   const message = await bot.api.sendMessage(chatId, text, {
     parse_mode: 'HTML',
     reply_markup: keyboard,

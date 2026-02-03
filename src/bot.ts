@@ -634,8 +634,9 @@ async function startNewRound(ctx: Context, state: GameState, chatId: number): Pr
 
 /**
  * Update the game board message
+ * Always sends a new message to trigger notifications for mentioned player
  */
-async function updateGameBoard(ctx: Context, state: GameState, chatId: number, newMessage = false): Promise<void> {
+async function updateGameBoard(ctx: Context, state: GameState, chatId: number, _newMessage = false): Promise<void> {
   const wordDisplay = buildWordDisplay(state);
   const scoreboard = buildScoreboard(state);
   const currentPlayerId = getCurrentPlayerId(state);
@@ -657,29 +658,22 @@ async function updateGameBoard(ctx: Context, state: GameState, chatId: number, n
     `🎮 <b>תור:</b> ${playerMention}\n` +
     `⏱ <i>דקה לבחירה</i>`;
 
-  if (newMessage) {
-    const message = await ctx.api.sendMessage(chatId, text, {
-      parse_mode: 'HTML',
-      reply_markup: keyboard,
-    });
-    state.gameBoardMessageId = message.message_id;
-    await saveGameState(chatId, state);
-  } else if (state.gameBoardMessageId) {
+  // Try to delete old message to reduce clutter
+  if (state.gameBoardMessageId) {
     try {
-      await ctx.api.editMessageText(chatId, state.gameBoardMessageId, text, {
-        parse_mode: 'HTML',
-        reply_markup: keyboard,
-      });
+      await ctx.api.deleteMessage(chatId, state.gameBoardMessageId);
     } catch {
-      // Message might not exist anymore, send new one
-      const message = await ctx.api.sendMessage(chatId, text, {
-        parse_mode: 'HTML',
-        reply_markup: keyboard,
-      });
-      state.gameBoardMessageId = message.message_id;
-      await saveGameState(chatId, state);
+      // Ignore if message can't be deleted
     }
   }
+
+  // Always send new message to trigger notification
+  const message = await ctx.api.sendMessage(chatId, text, {
+    parse_mode: 'HTML',
+    reply_markup: keyboard,
+  });
+  state.gameBoardMessageId = message.message_id;
+  await saveGameState(chatId, state);
 }
 
 /**
