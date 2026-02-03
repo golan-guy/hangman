@@ -529,16 +529,23 @@ async function startNewRound(ctx: Context, state: GameState, chatId: number): Pr
 async function updateGameBoard(ctx: Context, state: GameState, chatId: number, newMessage = false): Promise<void> {
   const wordDisplay = buildWordDisplay(state);
   const scoreboard = buildScoreboard(state);
+  const currentPlayerId = getCurrentPlayerId(state);
   const currentPlayer = getCurrentPlayer(state);
   const revealedSet = new Set(state.revealedLetters);
   const keyboard = createLetterKeyboard(revealedSet);
+
+  // Create mention link for current player
+  const playerMention =
+    currentPlayerId && currentPlayer
+      ? `<a href="tg://user?id=${currentPlayerId}">${currentPlayer.name}</a>`
+      : 'לא ידוע';
 
   const text =
     `🎡 <b>גלגל המזל</b>\n\n` +
     `📂 קטגוריה: <b>${state.category}</b>\n\n` +
     `<code>${wordDisplay}</code>\n\n` +
     `📊 <b>ניקוד:</b>\n${scoreboard}\n\n` +
-    `🎮 <b>תור:</b> ${currentPlayer?.name || 'לא ידוע'}`;
+    `🎮 <b>תור:</b> ${playerMention}`;
 
   if (newMessage) {
     const message = await ctx.api.sendMessage(chatId, text, {
