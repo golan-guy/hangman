@@ -1,14 +1,15 @@
 /**
- * Cron handler to check game timeouts every 30 seconds
+ * Cron handler to check game timeouts
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { checkAllGameTimeouts } from '../src/timeout';
 
+const CRON_SECRET = process.env.CRON_SECRET || 'hangman-cron-2024';
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Verify cron secret (optional but recommended)
-  const authHeader = req.headers.authorization;
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  // Verify cron secret via query parameter
+  if (req.query?.secret !== CRON_SECRET) {
     res.status(401).json({ error: 'Unauthorized' });
     return;
   }
