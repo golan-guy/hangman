@@ -24,10 +24,11 @@ export function createJoinKeyboard(): InlineKeyboard {
 export function createLetterKeyboard(revealedLetters: Set<string>): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
-  // Filter out already guessed letters and reverse for RTL display
-  const availableLetters = HEBREW_LETTERS.filter((letter) => !revealedLetters.has(normalize(letter))).reverse();
+  // Filter out already guessed letters (keep original א-ת order)
+  const availableLetters = HEBREW_LETTERS.filter((letter) => !revealedLetters.has(normalize(letter)));
 
-  // Split into rows and reverse each row for RTL
+  // Split into rows and reverse each row for RTL display
+  // So א ב ג ד ה becomes ה ד ג ב א (reads right-to-left as א ב ג ד ה)
   for (let i = 0; i < availableLetters.length; i += LETTERS_PER_ROW) {
     const row = availableLetters.slice(i, i + LETTERS_PER_ROW).reverse();
     for (const letter of row) {
