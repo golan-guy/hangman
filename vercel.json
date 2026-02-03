@@ -3,12 +3,9 @@
   "functions": {
     "api/webhook.ts": {
       "maxDuration": 30
+    },
+    "api/cron.ts": {
+      "maxDuration": 30
     }
-  },
-  "routes": [
-    {
-      "src": "/api/webhook",
-      "dest": "/api/webhook.ts"
-    }
-  ]
+  }
 }

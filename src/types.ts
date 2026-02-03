@@ -39,7 +39,15 @@ export interface GameState {
   solvingPlayerId?: number;
   /** Message ID of the solution prompt (to verify reply) */
   solutionMessageId?: number;
+  /** Timestamp when current turn started (ms) */
+  turnStartTime?: number;
+  /** Timestamp when solution attempt started (ms) */
+  solutionStartTime?: number;
 }
+
+/** Timeout duration in milliseconds */
+export const TURN_TIMEOUT_MS = 30_000; // 30 seconds
+export const SOLUTION_TIMEOUT_MS = 30_000; // 30 seconds
 
 /** Word entry in the word bank */
 export interface WordEntry {

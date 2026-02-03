@@ -4,7 +4,7 @@
 
 import { Bot, type Context } from 'grammy';
 import { getRandomWord } from './data/words';
-import type { GameState } from './types';
+import { type GameState, SOLUTION_TIMEOUT_MS, TURN_TIMEOUT_MS } from './types';
 import { createJoinKeyboard, createLetterKeyboard, parseCallbackData } from './utils/keyboard';
 import { compareHebrewStrings, getBothForms, isHebrewLetter, normalize } from './utils/normalize';
 import {
@@ -271,6 +271,37 @@ async function handleAction(
 }
 
 /**
+ * Check if turn timed out and handle it
+ * @returns true if timeout was handled, false otherwise
+ */
+async function checkAndHandleTurnTimeout(ctx: Context, state: GameState, chatId: number): Promise<boolean> {
+  // If awaiting solution, don't check turn timeout (solution has its own timeout)
+  if (state.awaitingSolution) {
+    return false;
+  }
+
+  // Check if turn timer exists and has expired
+  if (state.turnStartTime && Date.now() - state.turnStartTime > TURN_TIMEOUT_MS) {
+    const timedOutPlayer = getCurrentPlayer(state);
+    const timedOutPlayerName = timedOutPlayer?.name || 'השחקן';
+
+    // Move to next player with fresh timer
+    const newState = nextTurn(state);
+    newState.turnStartTime = Date.now();
+    await saveGameState(chatId, newState);
+
+    await ctx.answerCallbackQuery({ text: `⏰ נגמר הזמן! התור עבר.` });
+    await ctx.api.sendMessage(chatId, `⏰ נגמר הזמן ל-<b>${timedOutPlayerName}</b>! התור עובר.`, {
+      parse_mode: 'HTML',
+    });
+    await updateGameBoard(ctx, newState, chatId, true);
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Handle player joining
  */
 async function handleJoin(
@@ -332,8 +363,9 @@ async function handleGameStart(ctx: Context, state: GameState, chatId: number, u
     return;
   }
 
-  // Start the game
+  // Start the game with turn timer
   state.status = 'playing';
+  state.turnStartTime = Date.now();
   await saveGameState(chatId, state);
 
   await ctx.answerCallbackQuery({ text: 'המשחק מתחיל! 🎮' });
@@ -354,6 +386,13 @@ async function handleLetterGuess(
 ): Promise<void> {
   if (state.status !== 'playing') {
     await ctx.answerCallbackQuery({ text: 'המשחק לא פעיל!' });
+    return;
+  }
+
+  // Check if turn timed out
+  const timeoutResult = await checkAndHandleTurnTimeout(ctx, state, chatId);
+  if (timeoutResult) {
+    // Turn was timed out, board already updated
     return;
   }
 
@@ -384,9 +423,10 @@ async function handleLetterGuess(
   let newState = addRevealedLetter(state, normalizedLetter);
 
   if (isInWord) {
-    // Correct guess - add points and keep turn
+    // Correct guess - add points, keep turn, reset timer with bonus time
     newState = addPoints(newState, userId, POINTS_LETTER);
-    await ctx.answerCallbackQuery({ text: 'נכון! 🎉' });
+    newState.turnStartTime = Date.now(); // Reset timer for another 30 seconds
+    await ctx.answerCallbackQuery({ text: 'נכון! +30 שניות 🎉' });
 
     // Check if word is complete
     if (isWordComplete(newState)) {
@@ -394,8 +434,9 @@ async function handleLetterGuess(
       return;
     }
   } else {
-    // Wrong guess - move to next player
+    // Wrong guess - move to next player with fresh timer
     newState = nextTurn(newState);
+    newState.turnStartTime = Date.now();
     await ctx.answerCallbackQuery({ text: 'לא נכון! התור עובר.' });
   }
 
@@ -412,6 +453,12 @@ async function handleSolveRequest(ctx: Context, state: GameState, chatId: number
     return;
   }
 
+  // Check if turn timed out
+  const timeoutResult = await checkAndHandleTurnTimeout(ctx, state, chatId);
+  if (timeoutResult) {
+    return;
+  }
+
   const currentPlayerId = getCurrentPlayerId(state);
   if (userId !== currentPlayerId) {
     await ctx.answerCallbackQuery({ text: 'זה לא התור שלך!' });
@@ -420,22 +467,23 @@ async function handleSolveRequest(ctx: Context, state: GameState, chatId: number
 
   const playerName = state.playersData[userId]?.name || 'שחקן';
 
-  await ctx.answerCallbackQuery({ text: 'השב להודעה עם הפתרון!' });
+  await ctx.answerCallbackQuery({ text: 'יש לך 30 שניות! השב להודעה עם הפתרון.' });
 
   // Send message that user needs to reply to
   const promptMessage = await ctx.api.sendMessage(
     chatId,
-    `🤔 <b>${playerName}</b>, מה הפתרון שלך?\n\n<i>↩️ השב להודעה זו עם התשובה</i>`,
+    `🤔 <b>${playerName}</b>, מה הפתרון שלך?\n\n<i>↩️ השב להודעה זו תוך 30 שניות</i>`,
     {
       parse_mode: 'HTML',
       reply_markup: { force_reply: true, selective: true },
     },
   );
 
-  // Set awaiting solution flag with message ID
+  // Set awaiting solution flag with message ID and start time
   state.awaitingSolution = true;
   state.solvingPlayerId = userId;
   state.solutionMessageId = promptMessage.message_id;
+  state.solutionStartTime = Date.now();
   await saveGameState(chatId, state);
 }
 
@@ -449,10 +497,29 @@ async function handleSolutionAttempt(
   userId: number,
   answer: string,
 ): Promise<void> {
+  // Check if solution attempt timed out
+  if (state.solutionStartTime && Date.now() - state.solutionStartTime > SOLUTION_TIMEOUT_MS) {
+    // Clear awaiting flags
+    state.awaitingSolution = false;
+    state.solvingPlayerId = undefined;
+    state.solutionMessageId = undefined;
+    state.solutionStartTime = undefined;
+
+    // Move to next player
+    const newState = nextTurn(state);
+    newState.turnStartTime = Date.now();
+    await saveGameState(chatId, newState);
+
+    await ctx.reply('⏰ נגמר הזמן לפתרון! התור עובר.');
+    await updateGameBoard(ctx, newState, chatId, true);
+    return;
+  }
+
   // Clear awaiting flags
   state.awaitingSolution = false;
   state.solvingPlayerId = undefined;
   state.solutionMessageId = undefined;
+  state.solutionStartTime = undefined;
 
   // Compare answer with word (ignore spaces and final letters)
   const isCorrect = compareHebrewStrings(answer, state.word);
