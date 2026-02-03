@@ -425,8 +425,8 @@ async function handleLetterGuess(
   if (isInWord) {
     // Correct guess - add points, keep turn, reset timer with bonus time
     newState = addPoints(newState, userId, POINTS_LETTER);
-    newState.turnStartTime = Date.now(); // Reset timer for another 30 seconds
-    await ctx.answerCallbackQuery({ text: 'נכון! +30 שניות 🎉' });
+    newState.turnStartTime = Date.now(); // Reset timer for another 60 seconds
+    await ctx.answerCallbackQuery({ text: 'נכון! +60 שניות 🎉' });
 
     // Check if word is complete
     if (isWordComplete(newState)) {
@@ -467,12 +467,12 @@ async function handleSolveRequest(ctx: Context, state: GameState, chatId: number
 
   const playerName = state.playersData[userId]?.name || 'שחקן';
 
-  await ctx.answerCallbackQuery({ text: 'יש לך 30 שניות! השב להודעה עם הפתרון.' });
+  await ctx.answerCallbackQuery({ text: 'יש לך דקה! השב להודעה עם הפתרון.' });
 
   // Send message that user needs to reply to
   const promptMessage = await ctx.api.sendMessage(
     chatId,
-    `🤔 <b>${playerName}</b>, מה הפתרון שלך?\n\n<i>↩️ השב להודעה זו תוך 30 שניות</i>`,
+    `🤔 <b>${playerName}</b>, מה הפתרון שלך?\n\n<i>↩️ השב להודעה זו תוך דקה</i>`,
     {
       parse_mode: 'HTML',
       reply_markup: { force_reply: true, selective: true },
