@@ -1,0 +1,147 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.3.13/schema.json",
+  "root": true,
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single"
+    }
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 120
+  },
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true,
+    "defaultBranch": "main"
+  },
+  "files": {
+    "includes": ["**", "!**/node_modules", "!**/.history"]
+  },
+  "linter": {
+    "rules": {
+      "nursery": {
+        "useConsistentArrowReturn": {
+          "level": "warn",
+          "options": {
+            "style": "never"
+          }
+        },
+        "noUselessCatchBinding": "error",
+        "noReactForwardRef": "error"
+      },
+      "a11y": {
+        "useSemanticElements": "off",
+        "noSvgWithoutTitle": "off",
+        "useKeyWithClickEvents": "off"
+      },
+      "complexity": {
+        "noArguments": "error",
+        "noUselessConstructor": "error",
+        "noUselessFragments": "error",
+        "noUselessLabel": "error",
+        "noUselessLoneBlockStatements": "error",
+        "noUselessRename": "error",
+        "noUselessStringConcat": "error",
+        "noUselessUndefinedInitialization": "error",
+        "noVoid": "error",
+        "useLiteralKeys": "off",
+        "useNumericLiterals": "error",
+        "noCommaOperator": "off"
+      },
+      "correctness": {
+        "noChildrenProp": "error",
+        "noConstructorReturn": "error",
+        "noPrecisionLoss": "error",
+        "noUnusedVariables": "error",
+        "noVoidElementsWithChildren": "error",
+        "useExhaustiveDependencies": "warn",
+        "useHookAtTopLevel": "error",
+        "useJsxKeyInIterable": "warn",
+        "useValidTypeof": "error",
+        "noUnusedImports": "error"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "warn",
+        "noDangerouslySetInnerHtmlWithChildren": "error",
+        "noGlobalEval": "error"
+      },
+      "style": {
+        "noParameterAssign": "error",
+        "useEnumInitializers": "off",
+        "useLiteralEnumMembers": "off",
+        "useNamingConvention": "off",
+        "noRestrictedGlobals": {
+          "level": "error",
+          "options": {
+            "deniedGlobals": { "event": "TODO: Add a custom message here." }
+          }
+        },
+        "noRestrictedImports": "error",
+        "noYodaExpression": "error",
+        "useBlockStatements": "error",
+        "useConsistentBuiltinInstantiation": "error",
+        "useConst": "error",
+        "useFragmentSyntax": "error",
+        "useTemplate": "error"
+      },
+      "suspicious": {
+        "noAlert": "warn",
+        "noArrayIndexKey": "off",
+        "noCommentText": "error",
+        "noThenProperty": "off",
+        "noConsole": {
+          "level": "warn",
+          "options": { "allow": ["warn", "error", "info"] }
+        },
+        "noDebugger": "warn",
+        "noDoubleEquals": "warn",
+        "noDuplicateClassMembers": "off",
+        "noDuplicateJsxProps": "error",
+        "noEmptyBlockStatements": "warn",
+        "noLabelVar": "error",
+        "noOctalEscape": "error",
+        "noSelfCompare": "error",
+        "noTemplateCurlyInString": "error",
+        "noVar": "error",
+        "useAwait": "warn",
+        "useDefaultSwitchClauseLast": "error"
+      }
+    }
+  },
+  "assist": {
+    "actions": { "source": { "organizeImports": "on" } }
+  },
+  "overrides": [
+    {
+      "includes": ["**/*.spec.ts", "**/*.spec.tsx", "**/*.stories.ts", "**/*.stories.tsx"],
+      "linter": {
+        "domains": {
+          "test": "recommended"
+        },
+        "rules": {
+          "nursery": {
+            "noFloatingPromises": "error"
+          },
+          "a11y": {
+            "noStaticElementInteractions": "off",
+            "useSemanticElements": "off",
+            "noSvgWithoutTitle": "off",
+            "useKeyWithClickEvents": "off",
+            "useFocusableInteractive": "off"
+          },
+          "suspicious": {
+            "noConsole": "warn",
+            "noAlert": "warn"
+          },
+          "correctness": {
+            "noUnusedVariables": "warn"
+          }
+        }
+      }
+    }
+  ]
+}
