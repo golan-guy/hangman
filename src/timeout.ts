@@ -192,7 +192,7 @@ async function sendGameBoard(chatId: number, state: GameState): Promise<void> {
   const text =
     `🎡 <b>גלגל המזל</b>\n\n` +
     `📂 קטגוריה: <b>${state.category}</b>\n\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `━━━━━━━━━━━━━━━\n` +
     `<b>${wordDisplay}</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
     `📊 <b>ניקוד:</b>\n${scoreboard}\n\n` +

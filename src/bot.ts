@@ -192,7 +192,7 @@ export function createBot(token: string): Bot {
     }
 
     const wasCurrentPlayer = getCurrentPlayerId(state) === userId;
-    let newState = removePlayer(state, userId);
+    const newState = removePlayer(state, userId);
 
     // Check if game should end
     if (newState.playerOrder.length < 1) {
@@ -841,7 +841,7 @@ async function updateGameBoard(ctx: Context, state: GameState, chatId: number, t
   const text =
     `🎡 <b>גלגל המזל</b>\n\n` +
     `📂 קטגוריה: <b>${state.category}</b>\n\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `━━━━━━━━━━━━━━━\n` +
     `<b>${wordDisplay}</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
     `📊 <b>ניקוד:</b>\n${scoreboard}\n\n` +
