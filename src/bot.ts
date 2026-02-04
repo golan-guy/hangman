@@ -5,7 +5,7 @@
 import { Bot, type Context } from 'grammy';
 import { getRandomWord } from './data/words';
 import { type GameState, MAX_TIMEOUTS, SOLUTION_TIMEOUT_MS, TURN_TIMEOUT_MS } from './types';
-import { createJoinKeyboard, createLetterKeyboard, parseCallbackData } from './utils/keyboard';
+import { createJoinKeyboard, createKickKeyboard, createLetterKeyboard, parseCallbackData } from './utils/keyboard';
 import { compareHebrewStrings, getBothForms, isHebrewLetter, normalize } from './utils/normalize';
 import {
   addPlayer,
@@ -191,6 +191,9 @@ export function createBot(token: string): Bot {
       case 'letter':
         await handleLetterGuess(ctx, state, chatId, userId, value);
         break;
+      case 'kick':
+        await handleKick(ctx, state, chatId, userId, value);
+        break;
       default:
         await ctx.answerCallbackQuery();
     }
@@ -261,6 +264,9 @@ async function handleAction(
     case 'solve':
       await handleSolveRequest(ctx, state, chatId, userId);
       break;
+    case 'leave':
+      await handleLeave(ctx, state, chatId, userId);
+      break;
     case 'wait':
       await ctx.answerCallbackQuery({ text: 'זה לא התור שלך!' });
       break;
@@ -316,10 +322,13 @@ async function checkAndHandleTurnTimeout(ctx: Context, state: GameState, chatId:
       newState = nextTurn(newState);
 
       await ctx.answerCallbackQuery({ text: `⏰ נגמר הזמן! (${timeoutCount}/${MAX_TIMEOUTS})` });
+
+      // Send timeout message with admin kick option
+      const kickKeyboard = createKickKeyboard(timedOutPlayerId, timedOutPlayerName);
       await ctx.api.sendMessage(
         chatId,
-        `⏰ נגמר הזמן ל-<b>${timedOutPlayerName}</b>! (${timeoutCount}/${MAX_TIMEOUTS}) התור עובר.`,
-        { parse_mode: 'HTML' },
+        `⏰ נגמר הזמן ל-<b>${timedOutPlayerName}</b>! (${timeoutCount}/${MAX_TIMEOUTS}) התור עובר.\n<i>מנהלים יכולים להעיף:</i>`,
+        { parse_mode: 'HTML', reply_markup: kickKeyboard },
       );
     }
 
@@ -371,6 +380,126 @@ async function handleJoin(
   );
 
   await ctx.answerCallbackQuery({ text: 'הצטרפת למשחק! 🎉' });
+}
+
+/**
+ * Handle player leaving the game
+ */
+async function handleLeave(ctx: Context, state: GameState, chatId: number, userId: number): Promise<void> {
+  // Check if player is in the game
+  if (!state.playerOrder.includes(userId)) {
+    await ctx.answerCallbackQuery({ text: 'את/ה לא במשחק!' });
+    return;
+  }
+
+  const playerName = state.playersData[userId]?.name || 'שחקן';
+  const wasCurrentPlayer = getCurrentPlayerId(state) === userId;
+
+  let newState = removePlayer(state, userId);
+
+  // Check if game should end
+  if (newState.playerOrder.length < 1) {
+    await ctx.answerCallbackQuery({ text: 'עזבת את המשחק.' });
+    await ctx.api.sendMessage(chatId, `🚪 <b>${playerName}</b> עזב/ה את המשחק.\n🛑 המשחק הסתיים - אין מספיק שחקנים.`, {
+      parse_mode: 'HTML',
+    });
+    await deleteGameState(chatId);
+    return;
+  }
+
+  // If leaving player was current, reset turn timer
+  if (wasCurrentPlayer) {
+    newState.turnStartTime = Date.now();
+  }
+
+  await saveGameState(chatId, newState);
+
+  await ctx.answerCallbackQuery({ text: 'עזבת את המשחק.' });
+  await ctx.api.sendMessage(chatId, `🚪 <b>${playerName}</b> עזב/ה את המשחק.`, { parse_mode: 'HTML' });
+
+  // Update game board if game is active
+  if (newState.status === 'playing') {
+    await updateGameBoard(ctx, newState, chatId, wasCurrentPlayer);
+  }
+}
+
+/**
+ * Handle admin kicking a player
+ */
+async function handleKick(
+  ctx: Context,
+  state: GameState,
+  chatId: number,
+  adminId: number,
+  playerIdStr?: string,
+): Promise<void> {
+  // Check if user is admin
+  const isAdmin = await checkIsAdmin(ctx, chatId, adminId);
+  if (!isAdmin) {
+    await ctx.answerCallbackQuery({ text: 'רק מנהלים יכולים להעיף שחקנים!' });
+    return;
+  }
+
+  const playerId = playerIdStr ? Number.parseInt(playerIdStr, 10) : undefined;
+  if (!playerId || Number.isNaN(playerId)) {
+    await ctx.answerCallbackQuery({ text: 'שגיאה' });
+    return;
+  }
+
+  // Check if player is in the game
+  if (!state.playerOrder.includes(playerId)) {
+    await ctx.answerCallbackQuery({ text: 'השחקן כבר לא במשחק!' });
+    // Remove the kick button
+    try {
+      await ctx.editMessageReplyMarkup({ reply_markup: undefined });
+    } catch {
+      // Ignore
+    }
+    return;
+  }
+
+  const playerName = state.playersData[playerId]?.name || 'שחקן';
+  const wasCurrentPlayer = getCurrentPlayerId(state) === playerId;
+
+  let newState = removePlayer(state, playerId);
+
+  // Check if game should end
+  if (newState.playerOrder.length < 1) {
+    await ctx.answerCallbackQuery({ text: `${playerName} הועף/ה!` });
+    await ctx.api.sendMessage(chatId, `🚫 <b>${playerName}</b> הועף/ה מהמשחק.\n🛑 המשחק הסתיים - אין מספיק שחקנים.`, {
+      parse_mode: 'HTML',
+    });
+    await deleteGameState(chatId);
+    // Remove the kick button
+    try {
+      await ctx.editMessageReplyMarkup({ reply_markup: undefined });
+    } catch {
+      // Ignore
+    }
+    return;
+  }
+
+  // If kicked player was current, reset turn timer
+  if (wasCurrentPlayer) {
+    newState.turnStartTime = Date.now();
+  }
+
+  await saveGameState(chatId, newState);
+
+  await ctx.answerCallbackQuery({ text: `${playerName} הועף/ה!` });
+  await ctx.api.sendMessage(chatId, `🚫 <b>${playerName}</b> הועף/ה מהמשחק על ידי מנהל.`, { parse_mode: 'HTML' });
+
+  // Remove the kick button
+  try {
+    await ctx.editMessageReplyMarkup({ reply_markup: undefined });
+  } catch {
+    // Ignore
+  }
+
+  // Update game board if game is active
+  if (newState.status === 'playing') {
+    await updateGameBoard(ctx, newState, chatId, wasCurrentPlayer);
+  }
 }
 
 /**

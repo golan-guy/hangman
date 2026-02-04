@@ -39,8 +39,8 @@ export function createLetterKeyboard(revealedLetters: Set<string>): InlineKeyboa
     }
   }
 
-  // Add solve button on new row
-  keyboard.row().text('💡 פתרון המילה', 'action:solve');
+  // Add solve and leave buttons on new row
+  keyboard.row().text('💡 פתרון המילה', 'action:solve').text('🚪 עזיבה', 'action:leave');
 
   return keyboard;
 }
@@ -59,6 +59,16 @@ export function createWaitingKeyboard(): InlineKeyboard {
  */
 export function createGameOverKeyboard(): InlineKeyboard {
   return new InlineKeyboard().text('🔄 משחק חדש', 'action:new_game');
+}
+
+/**
+ * Create admin kick button keyboard
+ * @param playerId - ID of player to kick
+ * @param playerName - Name of player for display
+ * @returns InlineKeyboard with kick option
+ */
+export function createKickKeyboard(playerId: number, playerName: string): InlineKeyboard {
+  return new InlineKeyboard().text(`🚫 להעיף את ${playerName}`, `kick:${playerId}`);
 }
 
 /**
