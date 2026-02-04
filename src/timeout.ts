@@ -4,7 +4,7 @@
 
 import { Bot } from 'grammy';
 import { type GameState, MAX_TIMEOUTS, REDIS_PREFIX, SOLUTION_TIMEOUT_MS, TURN_TIMEOUT_MS } from './types';
-import { createLetterKeyboard } from './utils/keyboard';
+import { createKickKeyboard, createLetterKeyboard } from './utils/keyboard';
 import {
   deleteGameState,
   getCurrentPlayer,
@@ -104,10 +104,12 @@ async function handleTurnTimeout(chatId: number, state: GameState): Promise<void
     // Just move to next player
     newState = nextTurn(newState);
 
+    // Send timeout message with admin kick option
+    const kickKeyboard = createKickKeyboard(timedOutPlayerId, timedOutPlayerName);
     await bot.api.sendMessage(
       chatId,
-      `⏰ נגמר הזמן ל-<b>${timedOutPlayerName}</b>! (${timeoutCount}/${MAX_TIMEOUTS}) התור עובר.`,
-      { parse_mode: 'HTML' },
+      `⏰ נגמר הזמן ל-<b>${timedOutPlayerName}</b>! (${timeoutCount}/${MAX_TIMEOUTS}) התור עובר.\n<i>מנהלים יכולים להעיף:</i>`,
+      { parse_mode: 'HTML', reply_markup: kickKeyboard },
     );
   }
 
@@ -158,10 +160,12 @@ async function handleSolutionTimeout(chatId: number, state: GameState): Promise<
     // Just move to next player
     newState = nextTurn(newState);
 
+    // Send timeout message with admin kick option
+    const kickKeyboard = createKickKeyboard(timedOutPlayerId, timedOutPlayerName);
     await bot.api.sendMessage(
       chatId,
-      `⏰ נגמר הזמן לפתרון ל-<b>${timedOutPlayerName}</b>! (${timeoutCount}/${MAX_TIMEOUTS}) התור עובר.`,
-      { parse_mode: 'HTML' },
+      `⏰ נגמר הזמן לפתרון ל-<b>${timedOutPlayerName}</b>! (${timeoutCount}/${MAX_TIMEOUTS}) התור עובר.\n<i>מנהלים יכולים להעיף:</i>`,
+      { parse_mode: 'HTML', reply_markup: kickKeyboard },
     );
   }
 
