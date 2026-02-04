@@ -86,13 +86,6 @@ export function createBot(token: string): Bot {
       return;
     }
 
-    // Check if user is admin
-    const isAdmin = await checkIsAdmin(ctx, chatId, userId);
-    if (!isAdmin) {
-      await ctx.reply('❌ רק מנהלים יכולים להתחיל משחק.');
-      return;
-    }
-
     // Check for existing game
     const existingGame = await getGameState(chatId);
     if (existingGame) {
@@ -151,13 +144,6 @@ export function createBot(token: string): Bot {
     const state = await getGameState(chatId);
     if (!state) {
       await ctx.reply('❌ אין משחק פעיל.');
-      return;
-    }
-
-    // Allow admin or game starter to end
-    const isAdmin = await checkIsAdmin(ctx, chatId, userId);
-    if (!isAdmin && state.startedBy !== userId) {
-      await ctx.reply('❌ רק מנהלים יכולים לסיים את המשחק.');
       return;
     }
 
@@ -557,16 +543,9 @@ async function handleKick(
 /**
  * Handle game start
  */
-async function handleGameStart(ctx: Context, state: GameState, chatId: number, userId: number): Promise<void> {
+async function handleGameStart(ctx: Context, state: GameState, chatId: number, _userId: number): Promise<void> {
   if (state.status !== 'joining') {
     await ctx.answerCallbackQuery({ text: 'המשחק כבר התחיל!' });
-    return;
-  }
-
-  // Check if admin
-  const isAdmin = await checkIsAdmin(ctx, chatId, userId);
-  if (!isAdmin) {
-    await ctx.answerCallbackQuery({ text: 'רק מנהלים יכולים להתחיל את המשחק!' });
     return;
   }
 
@@ -966,21 +945,12 @@ export async function registerCommands(bot: Bot): Promise<void> {
     // Commands for all users in groups
     await bot.api.setMyCommands(
       [
-        { command: 'leave', description: '🚪 עזוב את המשחק' },
-        { command: 'help', description: '❓ עזרה וחוקי המשחק' },
-      ],
-      { scope: { type: 'all_group_chats' } },
-    );
-
-    // Admin commands in groups
-    await bot.api.setMyCommands(
-      [
         { command: 'start_game', description: '🎮 התחל משחק חדש' },
         { command: 'end_game', description: '🛑 סיים משחק' },
         { command: 'leave', description: '🚪 עזוב את המשחק' },
         { command: 'help', description: '❓ עזרה וחוקי המשחק' },
       ],
-      { scope: { type: 'all_chat_administrators' } },
+      { scope: { type: 'all_group_chats' } },
     );
   } catch (error) {
     console.error('Failed to register commands:', error);
