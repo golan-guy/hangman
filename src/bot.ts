@@ -820,9 +820,7 @@ async function updateGameBoard(ctx: Context, state: GameState, chatId: number, t
   const text =
     `🎡 <b>גלגל המזל</b>\n\n` +
     `📂 קטגוריה: <b>${state.category}</b>\n\n` +
-    `━━━━━━━━━━━━━━━\n` +
-    `<b>${wordDisplay}</b>\n` +
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `<b>${wordDisplay}</b>\n\n` +
     `📊 <b>ניקוד:</b>\n${scoreboard}\n\n` +
     `🎮 <b>תור:</b> ${playerMention}\n` +
     `⏱ <i>דקה לבחירה</i>`;
