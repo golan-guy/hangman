@@ -660,9 +660,9 @@ async function updateGameBoard(ctx: Context, state: GameState, chatId: number, t
   const text =
     `🎡 <b>גלגל המזל</b>\n\n` +
     `📂 קטגוריה: <b>${state.category}</b>\n\n` +
-    `━━━━━━━━━━━━━━━\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
     `<b>${wordDisplay}</b>\n` +
-    `━━━━━━━━━━━━━━━\n\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
     `📊 <b>ניקוד:</b>\n${scoreboard}\n\n` +
     `🎮 <b>תור:</b> ${playerMention}\n` +
     `⏱ <i>דקה לבחירה</i>`;
@@ -703,11 +703,13 @@ async function updateGameBoard(ctx: Context, state: GameState, chatId: number, t
 
 /**
  * Build word display with revealed letters
+ * Uses RLM (Right-to-Left Mark) to force RTL alignment even with underscores
  */
 function buildWordDisplay(state: GameState): string {
+  const RLM = '\u200F'; // Right-to-Left Mark
   const revealedSet = new Set(state.revealedLetters);
 
-  return state.word
+  const display = state.word
     .split('')
     .map((char) => {
       if (char === ' ') {
@@ -723,6 +725,9 @@ function buildWordDisplay(state: GameState): string {
       return '_';
     })
     .join(' ');
+
+  // Wrap with RLM to force RTL alignment
+  return `${RLM}${display}${RLM}`;
 }
 
 /**
