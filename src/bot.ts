@@ -165,6 +165,58 @@ export function createBot(token: string): Bot {
     await ctx.reply('🛑 המשחק הסתיים.');
   });
 
+  // /leave command - leave the game
+  bot.command('leave', async (ctx) => {
+    if (!ctx.chat || ctx.chat.type === 'private') {
+      return;
+    }
+
+    const chatId = ctx.chat.id;
+    const userId = ctx.from?.id;
+    const userName = ctx.from?.first_name || 'שחקן';
+
+    if (!userId) {
+      return;
+    }
+
+    const state = await getGameState(chatId);
+    if (!state) {
+      await ctx.reply('❌ אין משחק פעיל.');
+      return;
+    }
+
+    // Check if player is in the game
+    if (!state.playerOrder.includes(userId)) {
+      await ctx.reply('❌ את/ה לא במשחק.');
+      return;
+    }
+
+    const wasCurrentPlayer = getCurrentPlayerId(state) === userId;
+    let newState = removePlayer(state, userId);
+
+    // Check if game should end
+    if (newState.playerOrder.length < 1) {
+      await ctx.reply(`🚪 <b>${userName}</b> עזב/ה את המשחק.\n🛑 המשחק הסתיים - אין מספיק שחקנים.`, {
+        parse_mode: 'HTML',
+      });
+      await deleteGameState(chatId);
+      return;
+    }
+
+    // If leaving player was current, reset turn timer
+    if (wasCurrentPlayer) {
+      newState.turnStartTime = Date.now();
+    }
+
+    await saveGameState(chatId, newState);
+    await ctx.reply(`🚪 <b>${userName}</b> עזב/ה את המשחק.`, { parse_mode: 'HTML' });
+
+    // Update game board if game is active
+    if (newState.status === 'playing') {
+      await updateGameBoard(ctx, newState, chatId, wasCurrentPlayer);
+    }
+  });
+
   // Handle callback queries (button presses)
   bot.on('callback_query:data', async (ctx) => {
     const chatId = ctx.chat?.id;
@@ -912,15 +964,20 @@ export async function registerCommands(bot: Bot): Promise<void> {
     );
 
     // Commands for all users in groups
-    await bot.api.setMyCommands([{ command: 'help', description: '❓ עזרה וחוקי המשחק' }], {
-      scope: { type: 'all_group_chats' },
-    });
+    await bot.api.setMyCommands(
+      [
+        { command: 'leave', description: '🚪 עזוב את המשחק' },
+        { command: 'help', description: '❓ עזרה וחוקי המשחק' },
+      ],
+      { scope: { type: 'all_group_chats' } },
+    );
 
     // Admin commands in groups
     await bot.api.setMyCommands(
       [
         { command: 'start_game', description: '🎮 התחל משחק חדש' },
         { command: 'end_game', description: '🛑 סיים משחק' },
+        { command: 'leave', description: '🚪 עזוב את המשחק' },
         { command: 'help', description: '❓ עזרה וחוקי המשחק' },
       ],
       { scope: { type: 'all_chat_administrators' } },
