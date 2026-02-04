@@ -395,7 +395,7 @@ async function handleLeave(ctx: Context, state: GameState, chatId: number, userI
   const playerName = state.playersData[userId]?.name || 'שחקן';
   const wasCurrentPlayer = getCurrentPlayerId(state) === userId;
 
-  let newState = removePlayer(state, userId);
+  const newState = removePlayer(state, userId);
 
   // Check if game should end
   if (newState.playerOrder.length < 1) {
@@ -461,7 +461,7 @@ async function handleKick(
   const playerName = state.playersData[playerId]?.name || 'שחקן';
   const wasCurrentPlayer = getCurrentPlayerId(state) === playerId;
 
-  let newState = removePlayer(state, playerId);
+  const newState = removePlayer(state, playerId);
 
   // Check if game should end
   if (newState.playerOrder.length < 1) {
