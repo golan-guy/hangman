@@ -65,7 +65,7 @@ export function createBot(token: string): Bot {
         '• ניחוש שגוי = התור עובר\n' +
         '• פתרון המילה = 2 נקודות\n\n' +
         '<b>פקודות:</b>\n' +
-        '/start_game [נקודות] - התחל משחק (מנהלים בלבד)\n' +
+        '/start_game [נקודות] - התחל משחק חדש\n' +
         '/end_game - סיים משחק\n\n' +
         '<b>טיפ:</b> האותיות כ/ך, מ/ם, נ/ן, פ/ף, צ/ץ נחשבות זהות!',
       { parse_mode: 'HTML' },
@@ -116,7 +116,7 @@ export function createBot(token: string): Bot {
         `🏆 יעד: ${winLimit} נקודות\n` +
         '👥 שחקנים: 0\n\n' +
         'לחצו על <b>הצטרפות</b> להצטרף למשחק.\n' +
-        'כשכולם מוכנים, מנהל ילחץ על <b>התחל משחק</b>.',
+        'כשכולם מוכנים, יוצר המשחק ילחץ על <b>התחל משחק</b>.',
       {
         parse_mode: 'HTML',
         reply_markup: createJoinKeyboard(),
