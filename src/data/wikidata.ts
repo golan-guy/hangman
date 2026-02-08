@@ -62,18 +62,25 @@ export const CATEGORIES: WikidataCategory[] = [
   { id: 'Q8502', name: 'הרים' },
   { id: 'Q4022', name: 'נהרות' },
   { id: 'Q23397', name: 'אגמים' },
+  { id: 'Q23442', name: 'איים' },
+  { id: 'Q8514', name: 'מדבריות' },
+  { id: 'Q165', name: 'ימים ואוקיינוסים' },
+  { id: 'Q46831', name: 'רכסי הרים' },
 
   // --- Nature & Science ---
   { id: 'Q729', name: 'בעלי חיים' },
   { id: 'Q10874', name: 'פירות' },
+  { id: 'Q11004', name: 'ירקות' },
   { id: 'Q578521', name: 'גזעי כלבים' },
   { id: 'Q11344', name: 'יסודות כימיים' },
+  { id: 'Q756', name: 'צמחים' },
 
   // --- Culture & Entertainment ---
   { id: 'Q11424', name: 'סרטים' },
   { id: 'Q5398426', name: 'סדרות טלוויזיה' },
   { id: 'Q7889', name: 'משחקי וידאו' },
   { id: 'Q571', name: 'ספרים' },
+  { id: 'Q188451', name: 'סגנונות מוזיקה' },
 
   // --- Food ---
   { id: 'Q2095', name: 'מאכלים' },
@@ -81,11 +88,17 @@ export const CATEGORIES: WikidataCategory[] = [
   // --- Music & Art ---
   { id: 'Q34371', name: 'כלי נגינה' },
 
+  // --- Sports ---
+  { id: 'Q349', name: 'ענפי ספורט' },
+
+  // --- Knowledge & Language ---
+  { id: 'Q34770', name: 'שפות' },
+  { id: 'Q11862829', name: 'תחומי לימוד' },
+
   // --- Professions & Organisations ---
   { id: 'Q1273707', name: 'מקצועות' },
   { id: 'Q4830453', name: 'חברות עסקיות' },
   { id: 'Q476028', name: 'מועדוני כדורגל' },
-  { id: 'Q3918', name: 'אוניברסיטאות' },
 ];
 
 // ---------------------------------------------------------------------------
