@@ -9,9 +9,6 @@ import { getRedisKey } from '../types';
 /** Redis client singleton */
 let redisClient: Redis | null = null;
 
-/** Redis database number for this bot */
-const REDIS_DB = 3;
-
 /**
  * Get or create Redis client
  * @returns Redis client instance
@@ -22,7 +19,7 @@ export function getRedisClient(): Redis {
     if (!redisUrl) {
       throw new Error('REDIS_URL environment variable is not set');
     }
-    redisClient = new Redis(redisUrl, { db: REDIS_DB });
+    redisClient = new Redis(redisUrl);
   }
   return redisClient;
 }
