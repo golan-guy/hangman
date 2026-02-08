@@ -199,7 +199,7 @@ async function sendGameBoard(chatId: number, state: GameState): Promise<void> {
     `<b>${wordDisplay}</b>\n\n` +
     `📊 <b>ניקוד:</b>\n${scoreboard}\n\n` +
     `🎮 <b>תור:</b> ${playerMention}\n` +
-    `⏱ <i>דקה לבחירה</i>`;
+    `⏱ <i>30 שניות לבחירה</i>`;
 
   // Try to delete old message to reduce clutter
   if (state.gameBoardMessageId) {

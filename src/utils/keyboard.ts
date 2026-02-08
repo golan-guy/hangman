@@ -39,8 +39,8 @@ export function createLetterKeyboard(revealedLetters: Set<string>): InlineKeyboa
     }
   }
 
-  // Add solve and leave buttons on new row
-  keyboard.row().text('💡 פתרון המילה', 'action:solve').text('🚪 עזיבה', 'action:leave');
+  // Add solve, leave, and join buttons on new row
+  keyboard.row().text('💡 פתרון', 'action:solve').text('🚪 עזיבה', 'action:leave').text('🎮 הצטרפות', 'action:join');
 
   return keyboard;
 }

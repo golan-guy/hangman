@@ -3,7 +3,7 @@
  */
 
 import { Bot, type Context } from 'grammy';
-import { getRandomWord } from './data/words';
+import { getRandomWord } from './data/wikidata';
 import { type GameState, MAX_TIMEOUTS, SOLUTION_TIMEOUT_MS, TURN_TIMEOUT_MS } from './types';
 import { createJoinKeyboard, createKickKeyboard, createLetterKeyboard, parseCallbackData } from './utils/keyboard';
 import { compareHebrewStrings, getBothForms, isHebrewLetter, normalize } from './utils/normalize';
@@ -25,7 +25,7 @@ import {
 } from './utils/redis';
 
 /** Default win limit if not specified */
-const DEFAULT_WIN_LIMIT = 10;
+const DEFAULT_WIN_LIMIT = 100;
 
 /** Points for correct letter guess */
 const POINTS_LETTER = 1;
@@ -72,7 +72,7 @@ export function createBot(token: string): Bot {
     );
   });
 
-  // /start_game command - admin only
+  // /start_game command - anyone can start
   bot.command('start_game', async (ctx) => {
     if (!ctx.chat || ctx.chat.type === 'private') {
       await ctx.reply('❌ פקודה זו פועלת רק בקבוצות.');
@@ -104,7 +104,7 @@ export function createBot(token: string): Bot {
     }
 
     // Get random word
-    const { word, category } = getRandomWord();
+    const { word, category } = await getRandomWord();
 
     // Create initial state
     const state = createInitialState(word, category, userId, winLimit);
@@ -389,11 +389,6 @@ async function handleJoin(
   userId: number,
   userName: string,
 ): Promise<void> {
-  if (state.status !== 'joining') {
-    await ctx.answerCallbackQuery({ text: 'המשחק כבר התחיל!' });
-    return;
-  }
-
   if (state.playerOrder.includes(userId)) {
     await ctx.answerCallbackQuery({ text: 'כבר הצטרפת למשחק!' });
     return;
@@ -402,7 +397,15 @@ async function handleJoin(
   const newState = addPlayer(state, userId, userName);
   await saveGameState(chatId, newState);
 
-  // Update join message
+  // Handle join during playing phase (mid-game join)
+  if (state.status === 'playing') {
+    await ctx.answerCallbackQuery({ text: 'הצטרפת למשחק! 🎉 תורך יגיע בקרוב.' });
+    // Update the game board to show new player in scoreboard
+    await updateGameBoard(ctx, newState, chatId, false);
+    return;
+  }
+
+  // Handle join during joining phase
   const playerNames = newState.playerOrder.map((id) => newState.playersData[id]?.name || 'שחקן').join(', ');
 
   await ctx.editMessageText(
@@ -410,7 +413,7 @@ async function handleJoin(
       `🏆 יעד: ${newState.winLimit} נקודות\n` +
       `👥 שחקנים (${newState.playerOrder.length}): ${playerNames}\n\n` +
       'לחצו על <b>הצטרפות</b> להצטרף למשחק.\n' +
-      'כשכולם מוכנים, מנהל ילחץ על <b>התחל משחק</b>.',
+      'כשכולם מוכנים, לחצו על <b>התחל משחק</b>.',
     {
       parse_mode: 'HTML',
       reply_markup: createJoinKeyboard(),
@@ -543,9 +546,14 @@ async function handleKick(
 /**
  * Handle game start
  */
-async function handleGameStart(ctx: Context, state: GameState, chatId: number, _userId: number): Promise<void> {
+async function handleGameStart(ctx: Context, state: GameState, chatId: number, userId: number): Promise<void> {
   if (state.status !== 'joining') {
     await ctx.answerCallbackQuery({ text: 'המשחק כבר התחיל!' });
+    return;
+  }
+
+  if (userId !== state.startedBy) {
+    await ctx.answerCallbackQuery({ text: 'רק מי שיצר את המשחק יכול להתחיל אותו!' });
     return;
   }
 
@@ -616,8 +624,8 @@ async function handleLetterGuess(
   if (isInWord) {
     // Correct guess - add points, keep turn, reset timer with bonus time
     newState = addPoints(newState, userId, POINTS_LETTER);
-    newState.turnStartTime = Date.now(); // Reset timer for another 60 seconds
-    await ctx.answerCallbackQuery({ text: 'נכון! +60 שניות 🎉' });
+    newState.turnStartTime = Date.now(); // Reset timer for another 30 seconds
+    await ctx.answerCallbackQuery({ text: 'נכון! +30 שניות 🎉' });
 
     // Check if word is complete
     if (isWordComplete(newState)) {
@@ -721,13 +729,17 @@ async function handleSolutionAttempt(
   const isCorrect = compareHebrewStrings(answer, state.word);
 
   if (isCorrect) {
-    // Correct solution
-    const newState = addPoints(state, userId, POINTS_SOLVE);
+    // Correct solution: 2 points + 1 per unrevealed letter
+    const unrevealedCount = countUnrevealedLetters(state);
+    const totalPoints = POINTS_SOLVE + unrevealedCount * POINTS_LETTER;
+    const newState = addPoints(state, userId, totalPoints);
     await saveGameState(chatId, newState);
 
-    await ctx.reply(`🎉 נכון! המילה היא: <b>${state.word}</b>`, {
-      parse_mode: 'HTML',
-    });
+    await ctx.reply(
+      `🎉 נכון! המילה היא: <b>${state.word}</b>\n` +
+        `+${totalPoints} נק' (${POINTS_SOLVE} פתרון + ${unrevealedCount} אותיות)`,
+      { parse_mode: 'HTML' },
+    );
 
     // Check for winner
     const winnerId = checkWinner(newState);
@@ -790,7 +802,7 @@ async function handleGameWin(ctx: Context, state: GameState, chatId: number, win
  * Start a new round
  */
 async function startNewRound(ctx: Context, state: GameState, chatId: number): Promise<void> {
-  const { word, category } = getRandomWord();
+  const { word, category } = await getRandomWord(state.usedWords);
   const newState = newRound(state, word, category);
   await saveGameState(chatId, newState);
 
@@ -823,7 +835,7 @@ async function updateGameBoard(ctx: Context, state: GameState, chatId: number, t
     `<b>${wordDisplay}</b>\n\n` +
     `📊 <b>ניקוד:</b>\n${scoreboard}\n\n` +
     `🎮 <b>תור:</b> ${playerMention}\n` +
-    `⏱ <i>דקה לבחירה</i>`;
+    `⏱ <i>30 שניות לבחירה</i>`;
 
   if (turnChanged) {
     // Turn changed - delete old and send new to trigger notification
@@ -905,6 +917,26 @@ function buildScoreboard(state: GameState): string {
       return `${RLM}${marker} ${score} נק' • ${name}`;
     })
     .join('\n');
+}
+
+/**
+ * Count the number of unique unrevealed Hebrew letters in the word
+ */
+function countUnrevealedLetters(state: GameState): number {
+  const revealedSet = new Set(state.revealedLetters);
+  const unrevealedNormalized = new Set<string>();
+
+  for (const char of state.word) {
+    if (char === ' ' || !isHebrewLetter(char)) {
+      continue;
+    }
+    const normalized = normalize(char);
+    if (!revealedSet.has(normalized)) {
+      unrevealedNormalized.add(normalized);
+    }
+  }
+
+  return unrevealedNormalized.size;
 }
 
 /**

@@ -85,6 +85,7 @@ export function createInitialState(word: string, category: string, startedBy: nu
     winLimit,
     status: 'joining',
     startedBy,
+    usedWords: [word],
   };
 }
 
@@ -215,6 +216,7 @@ export function newRound(state: GameState, word: string, category: string): Game
     awaitingSolution: false,
     solvingPlayerId: undefined,
     solutionMessageId: undefined,
+    usedWords: [...(state.usedWords ?? []), word],
   };
 }
 

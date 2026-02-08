@@ -47,10 +47,12 @@ export interface GameState {
   turnStartTime?: number;
   /** Timestamp when solution attempt started (ms) */
   solutionStartTime?: number;
+  /** Words already used in this game (to avoid repeats) */
+  usedWords?: string[];
 }
 
 /** Timeout duration in milliseconds */
-export const TURN_TIMEOUT_MS = 60_000; // 60 seconds
+export const TURN_TIMEOUT_MS = 30_000; // 30 seconds
 export const SOLUTION_TIMEOUT_MS = 60_000; // 60 seconds
 
 /** Word entry in the word bank */

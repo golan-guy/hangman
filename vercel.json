@@ -5,7 +5,7 @@
       "maxDuration": 30
     },
     "api/cron.ts": {
-      "maxDuration": 30
+      "maxDuration": 60
     }
   }
 }
