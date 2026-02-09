@@ -71,10 +71,11 @@ export async function deleteGameState(chatId: number): Promise<void> {
  * @param winLimit - Points needed to win
  * @returns Initial game state
  */
-export function createInitialState(word: string, category: string, startedBy: number, winLimit: number): GameState {
+export function createInitialState(word: string, category: string, startedBy: number, winLimit: number, wordDescription?: string): GameState {
   return {
     word,
     category,
+    wordDescription,
     revealedLetters: [],
     playerOrder: [],
     playersData: {},
@@ -204,11 +205,12 @@ export function checkWinner(state: GameState): number | undefined {
  * @param category - New category
  * @returns Updated game state
  */
-export function newRound(state: GameState, word: string, category: string): GameState {
+export function newRound(state: GameState, word: string, category: string, wordDescription?: string): GameState {
   return {
     ...state,
     word,
     category,
+    wordDescription,
     revealedLetters: [],
     awaitingSolution: false,
     solvingPlayerId: undefined,

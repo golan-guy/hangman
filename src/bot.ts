@@ -104,10 +104,10 @@ export function createBot(token: string): Bot {
     }
 
     // Get random word
-    const { word, category } = await getRandomWord();
+    const { word, category, description } = await getRandomWord();
 
     // Create initial state
-    const state = createInitialState(word, category, userId, winLimit);
+    const state = createInitialState(word, category, userId, winLimit, description);
     await saveGameState(chatId, state);
 
     // Send join message
@@ -735,8 +735,9 @@ async function handleSolutionAttempt(
     const newState = addPoints(state, userId, totalPoints);
     await saveGameState(chatId, newState);
 
+    const descLine = state.wordDescription ? `\nℹ️ ${state.wordDescription}` : '';
     await ctx.reply(
-      `🎉 נכון! המילה היא: <b>${state.word}</b>\n` +
+      `🎉 נכון! המילה היא: <b>${state.word}</b>${descLine}\n` +
         `+${totalPoints} נק' (${POINTS_SOLVE} פתרון + ${unrevealedCount} אותיות)`,
       { parse_mode: 'HTML' },
     );
@@ -768,7 +769,8 @@ async function handleWordComplete(ctx: Context, state: GameState, chatId: number
   const newState = addPoints(state, solverId, POINTS_SOLVE);
   await saveGameState(chatId, newState);
 
-  await ctx.api.sendMessage(chatId, `🎉 המילה נחשפה: <b>${state.word}</b>`, { parse_mode: 'HTML' });
+  const descLine = state.wordDescription ? `\nℹ️ ${state.wordDescription}` : '';
+  await ctx.api.sendMessage(chatId, `🎉 המילה נחשפה: <b>${state.word}</b>${descLine}`, { parse_mode: 'HTML' });
 
   // Check for winner
   const winnerId = checkWinner(newState);
@@ -802,8 +804,8 @@ async function handleGameWin(ctx: Context, state: GameState, chatId: number, win
  * Start a new round
  */
 async function startNewRound(ctx: Context, state: GameState, chatId: number): Promise<void> {
-  const { word, category } = await getRandomWord(state.usedWords);
-  const newState = newRound(state, word, category);
+  const { word, category, description } = await getRandomWord(state.usedWords);
+  const newState = newRound(state, word, category, description);
   await saveGameState(chatId, newState);
 
   await ctx.api.sendMessage(chatId, '🔄 סיבוב חדש!', { parse_mode: 'HTML' });

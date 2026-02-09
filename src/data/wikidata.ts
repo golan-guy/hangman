@@ -105,8 +105,14 @@ export const CATEGORIES: WikidataCategory[] = [
 // SPARQL helpers
 // ---------------------------------------------------------------------------
 
+/** Cached word entry with optional description */
+interface CachedWord {
+  word: string;
+  description?: string;
+}
+
 /**
- * Build a SPARQL query that fetches Hebrew labels for a given category.
+ * Build a SPARQL query that fetches Hebrew labels and descriptions for a given category.
  * Only returns items that have a Hebrew Wikipedia article (ensures notability
  * and a proper Hebrew name).
  */
@@ -114,10 +120,11 @@ function buildQuery(category: WikidataCategory): string {
   const triplePattern = category.pattern ?? `?item wdt:P31 wd:${category.id} .`;
 
   return `
-SELECT DISTINCT ?itemLabel WHERE {
+SELECT DISTINCT ?itemLabel ?desc WHERE {
   ${triplePattern}
   ?item rdfs:label ?itemLabel .
   FILTER(LANG(?itemLabel) = "he")
+  OPTIONAL { ?item schema:description ?desc . FILTER(LANG(?desc) = "he") }
   ?article schema:about ?item ;
            schema:isPartOf <https://he.wikipedia.org/> .
 }
@@ -127,15 +134,15 @@ LIMIT ${WORDS_PER_CATEGORY}`.trim();
 /** Response shape from the Wikidata SPARQL endpoint */
 interface SparqlResponse {
   results: {
-    bindings: Array<{ itemLabel: { value: string } }>;
+    bindings: Array<{ itemLabel: { value: string }; desc?: { value: string } }>;
   };
 }
 
 /**
  * Fetch words from Wikidata for a single category.
- * Returns an array of Hebrew strings suitable for the game.
+ * Returns an array of word entries with optional descriptions.
  */
-async function fetchFromWikidata(category: WikidataCategory): Promise<string[]> {
+async function fetchFromWikidata(category: WikidataCategory): Promise<CachedWord[]> {
   const query = buildQuery(category);
   const url = `${SPARQL_ENDPOINT}?query=${encodeURIComponent(query)}&format=json`;
 
@@ -152,7 +159,12 @@ async function fetchFromWikidata(category: WikidataCategory): Promise<string[]> 
 
   const data = (await response.json()) as SparqlResponse;
 
-  return data.results.bindings.map((b) => b.itemLabel.value).filter(isValidGameWord);
+  return data.results.bindings
+    .filter((b) => isValidGameWord(b.itemLabel.value))
+    .map((b) => ({
+      word: b.itemLabel.value,
+      description: b.desc?.value,
+    }));
 }
 
 // ---------------------------------------------------------------------------
@@ -194,16 +206,20 @@ function isValidGameWord(word: string): boolean {
 /**
  * Get the cached word list for a category, or fetch & cache it from Wikidata.
  */
-async function getWordsForCategory(category: WikidataCategory): Promise<string[]> {
+async function getWordsForCategory(category: WikidataCategory): Promise<CachedWord[]> {
   const redis = getRedisClient();
   const cacheKey = `${WORDS_CACHE_PREFIX}${category.id}`;
 
   // Try cache first
   const cached = await redis.get(cacheKey);
   if (cached) {
-    const words = JSON.parse(cached) as string[];
-    if (words.length > 0) {
-      return words;
+    const parsed = JSON.parse(cached);
+    // Handle both old format (string[]) and new format (CachedWord[])
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      if (typeof parsed[0] === 'string') {
+        return (parsed as string[]).map((w) => ({ word: w }));
+      }
+      return parsed as CachedWord[];
     }
   }
 
@@ -225,16 +241,16 @@ async function getWordsForCategory(category: WikidataCategory): Promise<string[]
  * Small hardcoded fallback in case Wikidata AND Redis are both unreachable.
  */
 const FALLBACK_WORDS: WordEntry[] = [
-  { word: 'חתול', category: 'בעלי חיים' },
-  { word: 'ירושלים', category: 'ערים' },
-  { word: 'פסנתר', category: 'כלי נגינה' },
-  { word: 'שוקולד', category: 'מאכלים' },
-  { word: 'כדורגל', category: 'ספורט' },
-  { word: 'אריה', category: 'בעלי חיים' },
-  { word: 'תל אביב', category: 'ערים' },
-  { word: 'גיטרה', category: 'כלי נגינה' },
-  { word: 'פיצה', category: 'מאכלים' },
-  { word: 'דולפין', category: 'בעלי חיים' },
+  { word: 'חתול', category: 'בעלי חיים', description: 'יונק מבויית' },
+  { word: 'ירושלים', category: 'ערים', description: 'בירת ישראל' },
+  { word: 'פסנתר', category: 'כלי נגינה', description: 'כלי נגינה עם קלידים' },
+  { word: 'שוקולד', category: 'מאכלים', description: 'מאכל מתוק מקקאו' },
+  { word: 'כדורגל', category: 'ספורט', description: 'ענף ספורט פופולרי' },
+  { word: 'אריה', category: 'בעלי חיים', description: 'מלך החיות' },
+  { word: 'תל אביב', category: 'ערים', description: 'עיר בישראל' },
+  { word: 'גיטרה', category: 'כלי נגינה', description: 'כלי מיתר פרוט' },
+  { word: 'פיצה', category: 'מאכלים', description: 'מאכל איטלקי' },
+  { word: 'דולפין', category: 'בעלי חיים', description: 'יונק ימי' },
 ];
 
 /**
@@ -258,10 +274,10 @@ export async function getRandomWord(exclude?: string[]): Promise<WordEntry> {
   for (const category of shuffled) {
     try {
       const allWords = await getWordsForCategory(category);
-      const available = allWords.filter((w) => !excludeSet.has(w));
+      const available = allWords.filter((w) => !excludeSet.has(w.word));
       if (available.length > 0) {
-        const word = available[Math.floor(Math.random() * available.length)];
-        return { word, category: category.name };
+        const entry = available[Math.floor(Math.random() * available.length)];
+        return { word: entry.word, category: category.name, description: entry.description };
       }
     } catch (error) {
       console.error(`[wikidata] Failed to get words for "${category.name}" (${category.id}):`, error);

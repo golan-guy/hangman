@@ -21,6 +21,8 @@ export interface GameState {
   word: string;
   /** Category of the current word */
   category: string;
+  /** Short description of the current word from Wikidata */
+  wordDescription?: string;
   /** Set of normalized letters that have been revealed */
   revealedLetters: string[];
   /** Ordered array of player IDs representing turn order */
@@ -59,6 +61,7 @@ export const SOLUTION_TIMEOUT_MS = 60_000; // 60 seconds
 export interface WordEntry {
   word: string;
   category: string;
+  description?: string;
 }
 
 /** Hebrew letter mapping for final letters */
