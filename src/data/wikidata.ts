@@ -18,6 +18,16 @@ const CACHE_TTL_SECONDS = 86400;
 /** Max words to fetch per category */
 const WORDS_PER_CATEGORY = 500;
 
+/**
+ * Minimum number of Wikipedia sitelinks an item must have to be considered
+ * "well-known enough" for the game. Items with more sitelinks have Wikipedia
+ * articles in more languages, which is a strong proxy for popularity.
+ */
+const MIN_SITELINKS_DEFAULT = 15;
+
+/** People (Q5) is an extremely broad category – require higher notability */
+const MIN_SITELINKS_PEOPLE = 40;
+
 // ---------------------------------------------------------------------------
 // Category definitions
 // ---------------------------------------------------------------------------
@@ -34,6 +44,13 @@ interface WikidataCategory {
    * Use this for occupation-based queries or subclass traversal.
    */
   pattern?: string;
+  /**
+   * Optional minimum sitelinks override for this category.
+   * Categories with naturally fewer items (e.g. chemical elements, deserts)
+   * can lower this threshold so they still return enough words.
+   * Defaults to MIN_SITELINKS_DEFAULT (15).
+   */
+  minSitelinks?: number;
 }
 
 /** All categories available for the game */
@@ -44,16 +61,55 @@ export const CATEGORIES: WikidataCategory[] = [
     id: 'Q937857',
     name: 'כדורגלנים',
     pattern: '?item wdt:P31 wd:Q5 . ?item wdt:P106 wd:Q937857 .',
+    minSitelinks: 30,
   },
   {
     id: 'Q33999',
     name: 'שחקנים',
     pattern: '?item wdt:P31 wd:Q5 . ?item wdt:P106 wd:Q33999 .',
+    minSitelinks: 30,
   },
   {
     id: 'Q177220',
     name: 'זמרים',
     pattern: '?item wdt:P31 wd:Q5 . ?item wdt:P106 wd:Q177220 .',
+    minSitelinks: 30,
+  },
+  {
+    id: 'Q901',
+    name: 'מדענים',
+    pattern: '?item wdt:P31 wd:Q5 . ?item wdt:P106 wd:Q901 .',
+    minSitelinks: 30,
+  },
+  {
+    id: 'Q1028181',
+    name: 'צייירים',
+    pattern: '?item wdt:P31 wd:Q5 . ?item wdt:P106 wd:Q1028181 .',
+    minSitelinks: 25,
+  },
+  {
+    id: 'Q36180',
+    name: 'סופרים',
+    pattern: '?item wdt:P31 wd:Q5 . ?item wdt:P106 wd:Q36180 .',
+    minSitelinks: 30,
+  },
+  {
+    id: 'Q82955',
+    name: 'פוליטיקאים',
+    pattern: '?item wdt:P31 wd:Q5 . ?item wdt:P106 wd:Q82955 .',
+    minSitelinks: 35,
+  },
+  {
+    id: 'Q3665646',
+    name: 'כדורסלנים',
+    pattern: '?item wdt:P31 wd:Q5 . ?item wdt:P106 wd:Q3665646 .',
+    minSitelinks: 25,
+  },
+  {
+    id: 'Q10843263',
+    name: 'טניסאים',
+    pattern: '?item wdt:P31 wd:Q5 . ?item wdt:P106 wd:Q10843263 .',
+    minSitelinks: 25,
   },
 
   // --- Geography ---
@@ -63,42 +119,70 @@ export const CATEGORIES: WikidataCategory[] = [
   { id: 'Q4022', name: 'נהרות' },
   { id: 'Q23397', name: 'אגמים' },
   { id: 'Q23442', name: 'איים' },
-  { id: 'Q8514', name: 'מדבריות' },
+  { id: 'Q8514', name: 'מדבריות', minSitelinks: 8 },
   { id: 'Q165', name: 'ימים ואוקיינוסים' },
   { id: 'Q46831', name: 'רכסי הרים' },
+  { id: 'Q46169', name: 'פארקים לאומיים', minSitelinks: 10 },
+  {
+    id: 'Q5119',
+    name: 'בירות העולם',
+    pattern: '?item wdt:P31 wd:Q5119 .',
+    minSitelinks: 10,
+  },
 
   // --- Nature & Science ---
   { id: 'Q729', name: 'בעלי חיים' },
   { id: 'Q10874', name: 'פירות' },
   { id: 'Q11004', name: 'ירקות' },
   { id: 'Q578521', name: 'גזעי כלבים' },
-  { id: 'Q11344', name: 'יסודות כימיים' },
+  { id: 'Q11344', name: 'יסודות כימיים', minSitelinks: 5 },
   { id: 'Q756', name: 'צמחים' },
+  { id: 'Q2102', name: 'גזעי חתולים', minSitelinks: 8 },
 
   // --- Culture & Entertainment ---
   { id: 'Q11424', name: 'סרטים' },
   { id: 'Q5398426', name: 'סדרות טלוויזיה' },
   { id: 'Q7889', name: 'משחקי וידאו' },
   { id: 'Q571', name: 'ספרים' },
-  { id: 'Q188451', name: 'סגנונות מוזיקה' },
+  { id: 'Q188451', name: 'סגנונות מוזיקה', minSitelinks: 8 },
+  { id: 'Q215380', name: 'להקות מוזיקה' },
+  { id: 'Q1344', name: 'אופרות', minSitelinks: 10 },
+  { id: 'Q95074', name: 'דמויות בדיוניות', minSitelinks: 15 },
 
-  // --- Food ---
+  // --- Food & Drink ---
   { id: 'Q2095', name: 'מאכלים' },
+  { id: 'Q40050', name: 'משקאות', minSitelinks: 8 },
+  { id: 'Q13580', name: 'תבלינים', minSitelinks: 8 },
 
   // --- Music & Art ---
-  { id: 'Q34371', name: 'כלי נגינה' },
+  { id: 'Q34371', name: 'כלי נגינה', minSitelinks: 8 },
 
   // --- Sports ---
-  { id: 'Q349', name: 'ענפי ספורט' },
+  { id: 'Q349', name: 'ענפי ספורט', minSitelinks: 8 },
+  { id: 'Q476028', name: 'מועדוני כדורגל' },
+  { id: 'Q18558301', name: 'אולימפיאדות', minSitelinks: 8 },
 
   // --- Knowledge & Language ---
   { id: 'Q34770', name: 'שפות' },
-  { id: 'Q11862829', name: 'תחומי לימוד' },
+  { id: 'Q11862829', name: 'תחומי לימוד', minSitelinks: 8 },
+  { id: 'Q9174', name: 'דתות', minSitelinks: 5 },
+
+  // --- Health ---
+  { id: 'Q12136', name: 'מחלות', minSitelinks: 10 },
+
+  // --- Education ---
+  { id: 'Q3918', name: 'אוניברסיטאות' },
+
+  // --- Transportation ---
+  { id: 'Q3041255', name: 'יצרני רכב', minSitelinks: 10 },
+  { id: 'Q46970', name: 'חברות תעופה', minSitelinks: 10 },
+
+  // --- Economics & Finance ---
+  { id: 'Q8142', name: 'מטבעות', minSitelinks: 5 },
 
   // --- Professions & Organisations ---
-  { id: 'Q1273707', name: 'מקצועות' },
+  { id: 'Q1273707', name: 'מקצועות', minSitelinks: 8 },
   { id: 'Q4830453', name: 'חברות עסקיות' },
-  { id: 'Q476028', name: 'מועדוני כדורגל' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -115,19 +199,27 @@ interface CachedWord {
  * Build a SPARQL query that fetches Hebrew labels and descriptions for a given category.
  * Only returns items that have a Hebrew Wikipedia article (ensures notability
  * and a proper Hebrew name).
+ *
+ * Results are ordered by number of Wikipedia sitelinks (descending) so the most
+ * well-known items come first, and a minimum sitelinks threshold filters out
+ * obscure entries that players are unlikely to recognise.
  */
 function buildQuery(category: WikidataCategory): string {
   const triplePattern = category.pattern ?? `?item wdt:P31 wd:${category.id} .`;
+  const minSitelinks = category.id === 'Q5' ? MIN_SITELINKS_PEOPLE : (category.minSitelinks ?? MIN_SITELINKS_DEFAULT);
 
   return `
 SELECT DISTINCT ?itemLabel ?desc WHERE {
   ${triplePattern}
+  ?item wikibase:sitelinks ?sitelinks .
+  FILTER(?sitelinks >= ${minSitelinks})
   ?item rdfs:label ?itemLabel .
   FILTER(LANG(?itemLabel) = "he")
   OPTIONAL { ?item schema:description ?desc . FILTER(LANG(?desc) = "he") }
   ?article schema:about ?item ;
            schema:isPartOf <https://he.wikipedia.org/> .
 }
+ORDER BY DESC(?sitelinks)
 LIMIT ${WORDS_PER_CATEGORY}`.trim();
 }
 
