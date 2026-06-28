@@ -5,6 +5,7 @@
 import { Bot } from 'grammy';
 import { type GameState, MAX_TIMEOUTS, REDIS_PREFIX, SOLUTION_TIMEOUT_MS, TURN_TIMEOUT_MS } from './types';
 import { createKickKeyboard, createLetterKeyboard } from './utils/keyboard';
+import { stripHebrewMarks } from './utils/normalize';
 import {
   deleteGameState,
   getCurrentPlayer,
@@ -230,7 +231,8 @@ function buildWordDisplay(state: GameState): string {
   const revealedSet = new Set(state.revealedLetters);
   const FINAL_TO_REGULAR: Record<string, string> = { ך: 'כ', ם: 'מ', ן: 'נ', ף: 'פ', ץ: 'צ' };
 
-  const display = state.word
+  // Strip combining marks (niqqud) so they can't orphan onto spaces and crash clients.
+  const display = stripHebrewMarks(state.word)
     .split('')
     .map((char) => {
       if (char === ' ') {

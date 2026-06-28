@@ -4,19 +4,38 @@
  */
 
 import type { WordEntry } from '../types';
+import { stripHebrewMarks } from '../utils/normalize';
 import { getRedisClient } from '../utils/redis';
 
 /** Wikidata SPARQL endpoint */
 const SPARQL_ENDPOINT = 'https://query.wikidata.org/sparql';
 
-/** Redis cache key prefix for word lists */
-const WORDS_CACHE_PREFIX = 'hangman:words:';
+/**
+ * Redis cache key prefix for word lists.
+ * Bumped to v2 when word sanitization (niqqud stripping) was added so stale
+ * pre-sanitization lists are ignored and refetched.
+ */
+const WORDS_CACHE_PREFIX = 'hangman:words:v2:';
 
 /** Cache TTL: 24 hours */
 const CACHE_TTL_SECONDS = 86400;
 
 /** Max words to fetch per category */
 const WORDS_PER_CATEGORY = 500;
+
+/**
+ * When picking a word we only consider the N most popular entries in a category
+ * (the list is sorted by Wikipedia sitelinks, most well-known first). This keeps
+ * words recognisable instead of surfacing the obscure long tail.
+ */
+const MAX_CANDIDATES = 80;
+
+/**
+ * Exponent that skews random selection toward the more popular words.
+ * Values > 1 bias toward the front of the (popularity-sorted) list; with 2 about
+ * half of all picks come from the top quarter of the candidate pool.
+ */
+const POPULARITY_BIAS = 2;
 
 /**
  * Minimum number of Wikipedia sitelinks an item must have to be considered
@@ -106,10 +125,10 @@ export const CATEGORIES: WikidataCategory[] = [
     minSitelinks: 25,
   },
   {
-    id: 'Q10843263',
+    id: 'Q10833314',
     name: 'טניסאים',
-    pattern: '?item wdt:P31 wd:Q5 . ?item wdt:P106 wd:Q10843263 .',
-    minSitelinks: 25,
+    pattern: '?item wdt:P31 wd:Q5 . ?item wdt:P106 wd:Q10833314 .',
+    minSitelinks: 20,
   },
 
   // --- Geography ---
@@ -122,45 +141,41 @@ export const CATEGORIES: WikidataCategory[] = [
   { id: 'Q8514', name: 'מדבריות', minSitelinks: 8 },
   { id: 'Q165', name: 'ימים ואוקיינוסים' },
   { id: 'Q46831', name: 'רכסי הרים' },
-  { id: 'Q46169', name: 'פארקים לאומיים', minSitelinks: 10 },
-  {
-    id: 'Q5119',
-    name: 'בירות העולם',
-    pattern: '?item wdt:P31 wd:Q5119 .',
-    minSitelinks: 10,
-  },
 
   // --- Nature & Science ---
-  { id: 'Q729', name: 'בעלי חיים' },
-  { id: 'Q10874', name: 'פירות' },
-  { id: 'Q11004', name: 'ירקות' },
-  { id: 'Q578521', name: 'גזעי כלבים' },
+  { id: 'Q55983715', name: 'בעלי חיים', pattern: '?item wdt:P31 wd:Q55983715 .', minSitelinks: 20 },
+  { id: 'Q3314483', name: 'פירות', pattern: '?item wdt:P279* wd:Q3314483 .', minSitelinks: 10 },
+  { id: 'Q11004', name: 'ירקות', pattern: '?item wdt:P279* wd:Q11004 .', minSitelinks: 5 },
   { id: 'Q11344', name: 'יסודות כימיים', minSitelinks: 5 },
-  { id: 'Q756', name: 'צמחים' },
-  { id: 'Q2102', name: 'גזעי חתולים', minSitelinks: 8 },
 
   // --- Culture & Entertainment ---
   { id: 'Q11424', name: 'סרטים' },
   { id: 'Q5398426', name: 'סדרות טלוויזיה' },
   { id: 'Q7889', name: 'משחקי וידאו' },
-  { id: 'Q571', name: 'ספרים' },
+  { id: 'Q7725634', name: 'ספרים', pattern: '?item wdt:P31 wd:Q7725634 .', minSitelinks: 30 },
   { id: 'Q188451', name: 'סגנונות מוזיקה', minSitelinks: 8 },
   { id: 'Q215380', name: 'להקות מוזיקה' },
-  { id: 'Q1344', name: 'אופרות', minSitelinks: 10 },
-  { id: 'Q95074', name: 'דמויות בדיוניות', minSitelinks: 15 },
+  { id: 'Q15632617', name: 'דמויות בדיוניות', pattern: '?item wdt:P31 wd:Q15632617 .', minSitelinks: 20 },
+  { id: 'Q188784', name: 'גיבורי על', pattern: '?item wdt:P106 wd:Q188784 .', minSitelinks: 8 },
+  { id: 'Q1445650', name: 'חגים', pattern: '?item wdt:P31 wd:Q1445650 .', minSitelinks: 12 },
 
   // --- Food & Drink ---
   { id: 'Q2095', name: 'מאכלים' },
   { id: 'Q40050', name: 'משקאות', minSitelinks: 8 },
-  { id: 'Q13580', name: 'תבלינים', minSitelinks: 8 },
+  { id: 'Q42527', name: 'תבלינים', pattern: '?item wdt:P279* wd:Q42527 .', minSitelinks: 5 },
+  { id: 'Q182940', name: 'קינוחים', pattern: '?item wdt:P279* wd:Q182940 .', minSitelinks: 8 },
+
+  // --- Everyday objects ---
+  { id: 'Q11460', name: 'בגדים', pattern: '?item wdt:P279* wd:Q11460 .', minSitelinks: 8 },
+  { id: 'Q14745', name: 'רהיטים', pattern: '?item wdt:P279* wd:Q14745 .', minSitelinks: 6 },
+  { id: 'Q42889', name: 'כלי תחבורה', pattern: '?item wdt:P279* wd:Q42889 .', minSitelinks: 12 },
 
   // --- Music & Art ---
-  { id: 'Q34371', name: 'כלי נגינה', minSitelinks: 8 },
+  { id: 'Q34379', name: 'כלי נגינה', pattern: '?item wdt:P279* wd:Q34379 .', minSitelinks: 8 },
 
   // --- Sports ---
   { id: 'Q349', name: 'ענפי ספורט', minSitelinks: 8 },
   { id: 'Q476028', name: 'מועדוני כדורגל' },
-  { id: 'Q18558301', name: 'אולימפיאדות', minSitelinks: 8 },
 
   // --- Knowledge & Language ---
   { id: 'Q34770', name: 'שפות' },
@@ -170,18 +185,14 @@ export const CATEGORIES: WikidataCategory[] = [
   // --- Health ---
   { id: 'Q12136', name: 'מחלות', minSitelinks: 10 },
 
-  // --- Education ---
-  { id: 'Q3918', name: 'אוניברסיטאות' },
-
   // --- Transportation ---
-  { id: 'Q3041255', name: 'יצרני רכב', minSitelinks: 10 },
-  { id: 'Q46970', name: 'חברות תעופה', minSitelinks: 10 },
+  { id: 'Q786820', name: 'יצרני רכב', pattern: '?item wdt:P31 wd:Q786820 .', minSitelinks: 8 },
 
   // --- Economics & Finance ---
   { id: 'Q8142', name: 'מטבעות', minSitelinks: 5 },
 
   // --- Professions & Organisations ---
-  { id: 'Q1273707', name: 'מקצועות', minSitelinks: 8 },
+  { id: 'Q28640', name: 'מקצועות', pattern: '?item wdt:P279* wd:Q28640 .', minSitelinks: 15 },
   { id: 'Q4830453', name: 'חברות עסקיות' },
 ];
 
@@ -252,11 +263,13 @@ async function fetchFromWikidata(category: WikidataCategory): Promise<CachedWord
   const data = (await response.json()) as SparqlResponse;
 
   return data.results.bindings
-    .filter((b) => isValidGameWord(b.itemLabel.value))
     .map((b) => ({
-      word: b.itemLabel.value,
-      description: b.desc?.value,
-    }));
+      // Strip niqqud/cantillation up front so stored words, comparisons, and the
+      // board display are all consistent (and crash-safe).
+      word: stripHebrewMarks(b.itemLabel.value).trim(),
+      description: b.desc?.value ? stripHebrewMarks(b.desc.value).trim() : undefined,
+    }))
+    .filter((entry) => isValidGameWord(entry.word));
 }
 
 // ---------------------------------------------------------------------------
@@ -286,6 +299,11 @@ function isValidGameWord(word: string): boolean {
     return false;
   }
   if (!VALID_WORD.test(word)) {
+    return false;
+  }
+  // Reject any leftover combining marks (niqqud/cantillation). These should have
+  // been stripped already; this is a guard so they can never reach the display.
+  if (/\p{Mn}/u.test(word)) {
     return false;
   }
   return true;
@@ -330,6 +348,21 @@ async function getWordsForCategory(category: WikidataCategory): Promise<CachedWo
 // ---------------------------------------------------------------------------
 
 /**
+ * Pick a word biased toward the most popular entries.
+ *
+ * The list is already sorted by Wikipedia sitelinks (most well-known first), so
+ * we restrict to the top {@link MAX_CANDIDATES} and skew the random pick toward
+ * the front using {@link POPULARITY_BIAS}. This favours recognisable words while
+ * still leaving room for variety.
+ */
+function pickPopular(words: CachedWord[]): CachedWord {
+  const pool = words.slice(0, MAX_CANDIDATES);
+  const skewed = Math.random() ** POPULARITY_BIAS; // exponent > 1 favours index 0
+  const index = Math.floor(skewed * pool.length);
+  return pool[index];
+}
+
+/**
  * Small hardcoded fallback in case Wikidata AND Redis are both unreachable.
  */
 const FALLBACK_WORDS: WordEntry[] = [
@@ -368,8 +401,13 @@ export async function getRandomWord(exclude?: string[]): Promise<WordEntry> {
       const allWords = await getWordsForCategory(category);
       const available = allWords.filter((w) => !excludeSet.has(w.word));
       if (available.length > 0) {
-        const entry = available[Math.floor(Math.random() * available.length)];
-        return { word: entry.word, category: category.name, description: entry.description };
+        const entry = pickPopular(available);
+        // Final guard: strip marks in case an old (pre-v2) cache entry slipped through.
+        return {
+          word: stripHebrewMarks(entry.word),
+          category: category.name,
+          description: entry.description ? stripHebrewMarks(entry.description) : undefined,
+        };
       }
     } catch (error) {
       console.error(`[wikidata] Failed to get words for "${category.name}" (${category.id}):`, error);

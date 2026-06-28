@@ -6,3 +6,4 @@ dist/
 .history/
 .vercel
 .env*.local
+.DS_Store

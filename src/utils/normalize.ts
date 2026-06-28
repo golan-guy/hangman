@@ -82,6 +82,22 @@ export function normalizeString(str: string): string {
 }
 
 /**
+ * Remove Hebrew niqqud, cantillation, and any other nonspacing combining marks.
+ *
+ * These marks must sit on top of a base letter. The board display splits a word
+ * into individual code points and rejoins them with spaces, which orphans the
+ * marks onto spaces/underscores and produces malformed text that can crash
+ * Telegram clients. Stripping them also lets players solve words by typing the
+ * plain letters (niqqud is never typed during play).
+ *
+ * @param str - Hebrew string
+ * @returns The string with all combining marks removed
+ */
+export function stripHebrewMarks(str: string): string {
+  return str.normalize('NFD').replace(/\p{Mn}/gu, '');
+}
+
+/**
  * Check if a character is a Hebrew letter
  * @param char - Character to check
  * @returns True if Hebrew letter

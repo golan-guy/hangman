@@ -6,7 +6,7 @@ import { Bot, type Context } from 'grammy';
 import { getRandomWord } from './data/wikidata';
 import { type GameState, MAX_TIMEOUTS, SOLUTION_TIMEOUT_MS, TURN_TIMEOUT_MS } from './types';
 import { createJoinKeyboard, createKickKeyboard, createLetterKeyboard, parseCallbackData } from './utils/keyboard';
-import { compareHebrewStrings, getBothForms, isHebrewLetter, normalize } from './utils/normalize';
+import { compareHebrewStrings, getBothForms, isHebrewLetter, normalize, stripHebrewMarks } from './utils/normalize';
 import {
   addPlayer,
   addPoints,
@@ -40,6 +40,13 @@ const POINTS_SOLVE = 2;
  */
 export function createBot(token: string): Bot {
   const bot = new Bot(token);
+
+  // Error boundary: never let one failing update stop the bot. grammY's *default*
+  // handler calls bot.stop() on any uncaught error (e.g. an expired callback
+  // query from a fast tap), which would take the whole bot down.
+  bot.catch((err) => {
+    console.error('Error handling update', err.ctx?.update?.update_id, err.error);
+  });
 
   // /start command - show help
   bot.command('start', async (ctx) => {
@@ -633,9 +640,11 @@ async function handleLetterGuess(
       return;
     }
 
-    // Same player continues - just update board (no notification)
+    // Same player continues. Render the board in the background so rapid letter
+    // taps aren't serialized behind the Telegram edit — the state is already
+    // saved, so the next tap reads correct data even before the redraw lands.
     await saveGameState(chatId, newState);
-    await updateGameBoard(ctx, newState, chatId, false);
+    updateGameBoard(ctx, newState, chatId, false).catch((err) => console.error('Board refresh failed', err));
   } else {
     // Wrong guess - move to next player with fresh timer
     newState = nextTurn(newState);
@@ -806,6 +815,9 @@ async function handleGameWin(ctx: Context, state: GameState, chatId: number, win
 async function startNewRound(ctx: Context, state: GameState, chatId: number): Promise<void> {
   const { word, category, description } = await getRandomWord(state.usedWords);
   const newState = newRound(state, word, category, description);
+  // Reset the turn timer for the new round; otherwise the stale timestamp from
+  // the previous round makes the first guess immediately "time out" and skip the turn.
+  newState.turnStartTime = Date.now();
   await saveGameState(chatId, newState);
 
   await ctx.api.sendMessage(chatId, '🔄 סיבוב חדש!', { parse_mode: 'HTML' });
@@ -881,7 +893,10 @@ function buildWordDisplay(state: GameState): string {
   const RLM = '\u200F'; // Right-to-Left Mark
   const revealedSet = new Set(state.revealedLetters);
 
-  const display = state.word
+  // Guard against combining marks (niqqud) orphaning onto spaces, which crashes
+  // some Telegram clients. New words are already sanitized; this covers any
+  // in-flight game whose word predates the fix.
+  const display = stripHebrewMarks(state.word)
     .split('')
     .map((char) => {
       if (char === ' ') {
